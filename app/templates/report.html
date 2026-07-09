@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>状況報告書</h1>
+
+<div class="card">
+  <form method="get" action="/report" class="row" style="align-items:flex-end">
+    <div class="field"><label>測定回</label>
+      <select name="session_id" onchange="this.form.submit()">
+        {% for s in sessions %}
+        <option value="{{ s['id'] }}" {{ 'selected' if s['id']==session_id }}>
+          #{{ s['id'] }} {{ ('第' ~ s['session_no'] ~ '回') if s['session_no'] else '' }}
+          {{ s['measured_on'] or '' }} {{ s['source_file'] or '' }}
+        </option>
+        {% endfor %}
+      </select></div>
+    <div class="field"><label>利用者</label>
+      <select name="patient_id" onchange="this.form.submit()">
+        {% for p in patients %}
+        <option value="{{ p['id'] }}" {{ 'selected' if p['id']==patient_id }}>{{ p['code'] }} {{ p['name'] }}</option>
+        {% endfor %}
+      </select></div>
+    <div class="field" style="flex:0"><button class="btn secondary">表示</button></div>
+  </form>
+</div>
+
+{% if not sessions %}
+  <div class="card"><p class="muted">測定データがありません。先に「測定結果取込」を行ってください。</p></div>
+{% elif data %}
+<div class="card">
+  <div class="flex">
+    <div class="report-header">
+      <span class="name">{{ data.patient['name'] }}</span>
+      <span>（{{ sex_label(data.patient['sex']) }} {{ data.age }}歳{% if data.age_band %} / {{ AGE_BAND_LABELS.get(data.age_band,'') }}{% endif %}）</span>
+      <span class="muted">コード {{ data.patient['code'] }}</span>
+      <span class="muted">評価日 {{ data.session['measured_on'] or '―' }}</span>
+    </div>
+    <a class="btn" href="/report/pdf?session_id={{ session_id }}&patient_id={{ patient_id }}" target="_blank">PDF出力</a>
+  </div>
+</div>
+
+<div class="card">
+  <h2>評価詳細</h2>
+  <table>
+    <tr><th>区分</th><th>評価項目</th><th>実測値</th><th>単位</th><th class="center">相対評価</th><th>★表記</th><th>コメント</th></tr>
+    {% for ln in data.lines %}
+    <tr>
+      <td>{{ ln.category }}</td>
+      <td>{{ ln.name }}</td>
+      <td class="right">{% if ln.measured %}{{ ln.raw_text if (ln.raw_text and not ln.raw_text.startswith('派生:')) else (ln.value|num) }}{% else %}<span class="not-measured">未測定</span>{% endif %}</td>
+      <td>{{ ln.unit }}</td>
+      <td class="center">{{ ln.score if ln.measured and ln.score is not none else '―' }}</td>
+      <td class="stars">{{ ln.stars }}</td>
+      <td>{{ ln.comment }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+
+<div class="card radar-wrap">
+  <h2 style="text-align:left">測定結果 相対グラフ</h2>
+  {% if radar_b64 %}<img src="data:image/png;base64,{{ radar_b64 }}" alt="レーダーチャート">{% endif %}
+</div>
+
+<div class="card">
+  <h2>総合評価</h2>
+  <form method="post" action="/report/summary">
+    <input type="hidden" name="session_id" value="{{ session_id }}">
+    <input type="hidden" name="patient_id" value="{{ patient_id }}">
+    <div class="field"><textarea name="summary">{{ data.summary }}</textarea></div>
+    <button class="btn secondary">総合評価を保存</button>
+  </form>
+  {% if data.disclaimer %}<p class="muted" style="margin-top:12px">{{ data.disclaimer }}</p>{% endif %}
+</div>
+{% endif %}
+{% endblock %}

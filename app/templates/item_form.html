@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>評価項目 新規追加</h1>
+<div class="card">
+  <form method="post" action="/criteria/new">
+    <div class="row">
+      <div class="field"><label>項目名</label><input type="text" name="name" required></div>
+      <div class="field"><label>単位</label><input type="text" name="unit"></div>
+      <div class="field"><label>区分</label><input type="text" name="category" placeholder="例: 身体機能"></div>
+      <div class="field"><label>表示順</label><input type="number" name="sort_order" value="0"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>評価方向</label>
+        <select name="direction">
+          <option value="higher_better">higher_better（大きいほど良い）</option>
+          <option value="lower_better">lower_better（小さいほど良い）</option>
+          <option value="range">range（範囲内が良い）</option>
+          <option value="qualitative">qualitative（定性値）</option>
+        </select></div>
+      <div class="field"><label>取込列名</label><input type="text" name="source_column"></div>
+      <div class="field"><label>派生式キー</label><input type="text" name="derived_formula" placeholder="例: bmi"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label><input type="checkbox" name="in_radar" value="1" checked> レーダー対象</label></div>
+      <div class="field"><label><input type="checkbox" name="is_qualitative" value="1"> 定性値（コード値）</label></div>
+    </div>
+    <button class="btn">作成</button>
+    <a class="btn secondary" href="/criteria">キャンセル</a>
+  </form>
+</div>
+{% endblock %}

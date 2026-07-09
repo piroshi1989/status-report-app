@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}状況報告書作成アプリ{% endblock %}</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><a href="/">状況報告書作成アプリ</a></div>
+  <nav class="nav">
+    <a href="/" class="{{ 'on' if active=='home' }}">ホーム</a>
+    <a href="/upload" class="{{ 'on' if active=='upload' }}">測定結果取込</a>
+    <a href="/patients" class="{{ 'on' if active=='patients' }}">利用者</a>
+    <a href="/report" class="{{ 'on' if active=='report' }}">状況報告書</a>
+    <a href="/batch" class="{{ 'on' if active=='batch' }}">一括PDF</a>
+    <a href="/criteria" class="{{ 'on' if active=='criteria' }}">評価基準マスタ</a>
+  </nav>
+</header>
+<main class="container">
+  {% block content %}{% endblock %}
+</main>
+</body>
+</html>

@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>測定結果の取込</h1>
+
+{% if error %}<div class="alert">{{ error }}</div>{% endif %}
+
+<div class="card">
+  <div class="notice">
+    測定結果一覧(.xls / .xlsx)を選択してください。1 行 = 1 利用者。
+    空セルは「未測定」として扱われます。取込前にプレビューで内容を確認できます。
+  </div>
+  <form method="post" action="/upload/analyze" enctype="multipart/form-data">
+    <div class="field"><label>ファイル(.xls / .xlsx)</label>
+      <input type="file" name="file" accept=".xls,.xlsx" required></div>
+    <div class="row">
+      <div class="field"><label>評価回（第n回・任意）</label>
+        <input type="number" name="session_no" min="1" placeholder="例: 1"></div>
+      <div class="field"><label>評価日（任意）</label>
+        <input type="date" name="measured_on"></div>
+    </div>
+    <button class="btn">プレビュー</button>
+  </form>
+</div>
+{% endblock %}

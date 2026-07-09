@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>ホーム</h1>
+
+<div class="grid" style="margin-bottom:20px">
+  <div class="stat"><div class="num">{{ patient_count }}</div><div class="lbl">登録利用者</div></div>
+  <div class="stat" style="background:#38a169"><div class="num">{{ item_count }}</div><div class="lbl">評価項目</div></div>
+  <div class="stat" style="background:#dd6b20"><div class="num">{{ sessions|length }}</div><div class="lbl">最近の測定回</div></div>
+</div>
+
+<div class="card">
+  <div class="flex"><h2>クイック操作</h2></div>
+  <p>
+    <a class="btn" href="/upload">測定結果を取り込む</a>
+    <a class="btn secondary" href="/patients/new">利用者を登録</a>
+    <a class="btn secondary" href="/report">状況報告書を見る</a>
+  </p>
+</div>
+
+<div class="card">
+  <h2>最近の測定回(アップロード)</h2>
+  {% if sessions %}
+  <table>
+    <tr><th>ID</th><th>回</th><th>評価日</th><th>元ファイル</th><th>取込日時</th><th></th></tr>
+    {% for s in sessions %}
+    <tr>
+      <td>{{ s['id'] }}</td>
+      <td class="center">{{ s['session_no'] or '-' }}</td>
+      <td>{{ s['measured_on'] or '-' }}</td>
+      <td>{{ s['source_file'] or '' }}</td>
+      <td class="muted">{{ s['created_at'] }}</td>
+      <td><a class="btn small" href="/report?session_id={{ s['id'] }}">報告書</a></td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p class="muted">まだ取込がありません。「測定結果を取り込む」から開始してください。</p>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>一括PDF出力</h1>
+
+<div class="card">
+  {% if not sessions %}
+    <p class="muted">測定データがありません。先に「測定結果取込」を行ってください。</p>
+  {% else %}
+  <div class="notice">選択した測定回に含まれる全利用者の状況報告書を 1 つの PDF にまとめて生成します。</div>
+  <form method="post" action="/batch/generate">
+    <div class="field"><label>測定回</label>
+      <select name="session_id" required>
+        {% for s in sessions %}
+        <option value="{{ s['id'] }}">
+          #{{ s['id'] }} {{ ('第' ~ s['session_no'] ~ '回') if s['session_no'] else '' }}
+          {{ s['measured_on'] or '' }} {{ s['source_file'] or '' }}
+        </option>
+        {% endfor %}
+      </select></div>
+    <div class="field">
+      <label><input type="checkbox" name="save_to_disk" value="1" checked> output フォルダにも保存する</label>
+    </div>
+    <button class="btn">PDFを生成してダウンロード</button>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="flex">
+  <h1>利用者一覧</h1>
+  <a class="btn" href="/patients/new">＋ 新規登録</a>
+</div>
+
+<div class="card">
+  <form method="get" action="/patients" class="row" style="align-items:flex-end">
+    <div class="field"><label>コード / 氏名で検索</label>
+      <input type="text" name="q" value="{{ q }}" placeholder="キーワード"></div>
+    <div class="field" style="flex:0"><button class="btn">検索</button></div>
+  </form>
+</div>
+
+<div class="card">
+  <table>
+    <tr><th>コード</th><th>氏名</th><th>性別</th><th>生年月日</th><th>年齢/年代</th><th>PM</th><th>状態</th><th></th></tr>
+    {% for p in patients %}
+    {% set r = p.row %}
+    <tr>
+      <td>{{ r['code'] }}</td>
+      <td>{{ r['name'] }}</td>
+      <td class="center">{{ sex_label(r['sex']) }}</td>
+      <td>{{ r['birth_date'] or '' }}</td>
+      <td>{{ p.age if p.age is not none else '' }}{% if p.age is not none %}歳{% endif %} <span class="muted">{{ p.band }}</span></td>
+      <td class="center">{% if r['pacemaker'] %}<span class="badge warn">有</span>{% endif %}</td>
+      <td class="center">{% if r['is_active'] %}<span class="badge ok">有効</span>{% else %}<span class="badge">無効</span>{% endif %}</td>
+      <td>
+        <a class="btn small secondary" href="/patients/{{ r['id'] }}/edit">編集</a>
+        <form method="post" action="/patients/{{ r['id'] }}/toggle" style="display:inline">
+          <button class="btn small {{ 'danger' if r['is_active'] else 'secondary' }}">
+            {{ '無効化' if r['is_active'] else '有効化' }}</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="8" class="muted center">利用者が登録されていません。</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

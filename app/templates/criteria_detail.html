@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="flex">
+  <h1>基準編集: {{ item['name'] }}</h1>
+  <a class="btn secondary" href="/criteria">一覧へ戻る</a>
+</div>
+
+<div class="card">
+  <h2>項目属性</h2>
+  <form method="post" action="/criteria/{{ item['id'] }}/item">
+    <div class="row">
+      <div class="field"><label>項目名</label><input type="text" name="name" value="{{ item['name'] }}" required></div>
+      <div class="field"><label>単位</label><input type="text" name="unit" value="{{ item['unit'] or '' }}"></div>
+      <div class="field"><label>区分</label><input type="text" name="category" value="{{ item['category'] or '' }}"></div>
+      <div class="field"><label>表示順</label><input type="number" name="sort_order" value="{{ item['sort_order'] }}"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>評価方向</label>
+        <select name="direction">
+          {% for d in ['higher_better','lower_better','range','qualitative'] %}
+          <option value="{{ d }}" {{ 'selected' if item['direction']==d }}>{{ d }}</option>
+          {% endfor %}
+        </select></div>
+      <div class="field"><label>取込列名</label><input type="text" name="source_column" value="{{ item['source_column'] or '' }}"></div>
+      <div class="field"><label>派生式キー</label><input type="text" name="derived_formula" value="{{ item['derived_formula'] or '' }}" placeholder="例: bmi"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label><input type="checkbox" name="in_radar" value="1" {{ 'checked' if item['in_radar'] }}> レーダー対象</label></div>
+      <div class="field"><label><input type="checkbox" name="is_qualitative" value="1" {{ 'checked' if item['is_qualitative'] }}> 定性値（コード値）</label></div>
+      <div class="field"><label><input type="checkbox" name="is_active" value="1" {{ 'checked' if item['is_active'] }}> 有効</label></div>
+    </div>
+    <button class="btn secondary">項目を保存</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2>評価基準（区間下限値 → 相対評価）</h2>
+  <p class="muted">各行は「その相対評価になる区間の下限値」を表します。判定は、測定値以下で最大の閾値の行を採用します。
+    条件（性別 / 年代 / PM）は空欄＝全展開。より具体的な条件が優先されます。</p>
+  <table>
+    <tr><th>性別</th><th>年代</th><th>PM</th><th class="right">閾値(下限)</th><th class="center">評価</th><th>コメント</th><th></th></tr>
+    {% for c in criteria %}
+    <tr>
+      <td>{{ sex_label(c['sex']) or '（全）' }}</td>
+      <td>{{ age_labels.get(c['age_band'], '（全）') }}</td>
+      <td class="center">{% if c['pacemaker'] is none %}（全）{% else %}{{ '有' if c['pacemaker'] else '無' }}{% endif %}</td>
+      <td class="right">{{ c['threshold'] }}</td>
+      <td class="center">{{ c['score'] }}</td>
+      <td>{{ c['comment'] or '' }}</td>
+      <td>
+        <form method="post" action="/criteria/{{ item['id'] }}/criterion/{{ c['id'] }}/delete" style="display:inline"
+              onsubmit="return confirm('削除しますか?');">
+          <button class="btn small danger">削除</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="7" class="muted center">基準が未設定です。</td></tr>
+    {% endfor %}
+  </table>
+
+  <h3>基準を追加</h3>
+  <form method="post" action="/criteria/{{ item['id'] }}/criterion/add" class="row" style="align-items:flex-end">
+    <div class="field"><label>性別</label>
+      <select name="sex"><option value="">全</option><option value="M">男</option><option value="F">女</option></select></div>
+    <div class="field"><label>年代</label>
+      <select name="age_band"><option value="">全</option>
+        {% for b in age_bands %}<option value="{{ b }}">{{ age_labels[b] }}</option>{% endfor %}
+      </select></div>
+    <div class="field"><label>PM</label>
+      <select name="pacemaker"><option value="">全</option><option value="0">無</option><option value="1">有</option></select></div>
+    <div class="field"><label>閾値(下限)</label><input type="number" step="any" name="threshold" required></div>
+    <div class="field"><label>評価(1-5)</label><input type="number" min="1" max="5" name="score" required></div>
+    <div class="field" style="flex:2"><label>コメント</label><input type="text" name="comment"></div>
+    <div class="field" style="flex:0"><button class="btn">追加</button></div>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+*.spec.bak
+
+# venv
+.venv/
+venv/
+env/
+
+# App data (personal information — never commit)
+*.db
+*.sqlite
+*.sqlite3
+data/
+output/
+*.pdf
+
+# Source Excel (may contain personal information)
+*.xls
+*.xlsx
+!tests/fixtures/*.xlsx
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Test / coverage
+.pytest_cache/
+.coverage
+htmlcov/

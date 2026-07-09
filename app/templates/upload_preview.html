@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>取込プレビュー</h1>
+
+<div class="card">
+  <div class="flex">
+    <div>
+      ファイル: <strong>{{ orig_name }}</strong>
+      対象行: <strong>{{ preview.rows|length }}</strong>
+      一致列: <span class="badge ok">{{ preview.matched_count }}</span>
+      {% if preview.unmatched_columns %}未一致列: <span class="badge warn">{{ preview.unmatched_columns|length }}</span>{% endif %}
+    </div>
+  </div>
+
+  {% if preview.unmatched_columns %}
+  <p class="muted">未一致の列（評価項目に対応付け不可・スキップ）: {{ preview.unmatched_columns|join(' / ') }}
+    <br>→ 評価基準マスタで項目の「取込列名」やエイリアスを設定すると対応付けられます。</p>
+  {% endif %}
+
+  {% if preview.unregistered_codes %}
+  <div class="alert">
+    未登録の利用者コードが {{ preview.unregistered_codes|length }} 件あります:
+    {{ preview.unregistered_codes|join(', ') }}
+  </div>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>対応付けされた評価項目</h2>
+  <p>
+    {% for col, name in preview.columns_matched if name %}
+      <span class="badge ok" style="margin:2px">{{ name }} <span class="muted">← {{ col }}</span></span>
+    {% endfor %}
+  </p>
+</div>
+
+<div class="card">
+  <h2>取込対象の利用者</h2>
+  <table>
+    <tr><th>コード</th><th>氏名</th><th>登録状態</th><th>測定値数</th></tr>
+    {% for r in preview.rows %}
+    <tr>
+      <td>{{ r.code }}</td>
+      <td>{{ r.name or '' }}</td>
+      <td class="center">{% if r.registered %}<span class="badge ok">登録済</span>{% else %}<span class="badge warn">未登録</span>{% endif %}</td>
+      <td class="center">{{ r.measured_count }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  <p class="muted">※ 各測定値の評価結果は取込後に「状況報告書」で確認できます。</p>
+</div>
+
+<div class="card">
+  <form method="post" action="/upload/commit">
+    <input type="hidden" name="token" value="{{ token }}">
+    <input type="hidden" name="orig_name" value="{{ orig_name }}">
+    <input type="hidden" name="session_no" value="{{ session_no }}">
+    <input type="hidden" name="measured_on" value="{{ measured_on }}">
+    {% if preview.unregistered_codes %}
+    <div class="field">
+      <label><input type="checkbox" name="auto_register" value="1"> 未登録の利用者コードを仮登録して取り込む</label>
+      <span class="muted">（後で利用者画面から氏名・生年月日等を補完してください）</span>
+    </div>
+    {% endif %}
+    <button class="btn">この内容で取り込む</button>
+    <a class="btn secondary" href="/upload">やり直す</a>
+  </form>
+</div>
+{% endblock %}

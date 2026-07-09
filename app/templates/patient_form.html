@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>{{ '利用者編集' if patient else '利用者 新規登録' }}</h1>
+
+{% if error %}<div class="alert">{{ error }}</div>{% endif %}
+
+<div class="card">
+  <form method="post" action="{{ '/patients/' ~ patient['id'] ~ '/edit' if patient else '/patients/new' }}">
+    <div class="row">
+      <div class="field">
+        <label>利用者コード{% if not patient %}（登録後は変更不可）{% endif %}</label>
+        {% if patient %}
+          <input type="text" value="{{ patient['code'] }}" disabled>
+        {% else %}
+          <input type="text" name="code" required>
+        {% endif %}
+      </div>
+      <div class="field"><label>氏名</label>
+        <input type="text" name="name" value="{{ patient['name'] if patient else '' }}" required></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>性別</label>
+        <select name="sex">
+          <option value="">未設定</option>
+          <option value="M" {{ 'selected' if patient and patient['sex']=='M' }}>男</option>
+          <option value="F" {{ 'selected' if patient and patient['sex']=='F' }}>女</option>
+        </select></div>
+      <div class="field"><label>生年月日</label>
+        <input type="date" name="birth_date" value="{{ patient['birth_date'] if patient else '' }}"></div>
+      <div class="field"><label>ペースメーカー</label>
+        <select name="pacemaker">
+          <option value="0" {{ 'selected' if not (patient and patient['pacemaker']) }}>なし</option>
+          <option value="1" {{ 'selected' if patient and patient['pacemaker'] }}>あり</option>
+        </select></div>
+    </div>
+    <div class="field"><label>服薬情報（血糖降下薬 等・任意）</label>
+      <textarea name="med_info">{{ patient['med_info'] if patient else '' }}</textarea></div>
+    <div class="field"><label>備考</label>
+      <textarea name="note">{{ patient['note'] if patient else '' }}</textarea></div>
+    <button class="btn">保存</button>
+    <a class="btn secondary" href="/patients">キャンセル</a>
+  </form>
+</div>
+{% endblock %}

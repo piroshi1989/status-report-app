@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="flex">
+  <h1>評価基準マスタ</h1>
+  <a class="btn" href="/criteria/new">＋ 項目を追加</a>
+</div>
+
+<div class="card">
+  <table>
+    <tr><th>順</th><th>項目名</th><th>単位</th><th>区分</th><th>評価方向</th><th class="center">レーダー</th><th>取込列名</th><th class="center">状態</th><th></th></tr>
+    {% for it in items %}
+    <tr>
+      <td class="center">{{ it['sort_order'] }}</td>
+      <td>{{ it['name'] }}{% if it['is_qualitative'] %} <span class="badge">定性</span>{% endif %}{% if it['derived_formula'] %} <span class="badge">派生</span>{% endif %}</td>
+      <td>{{ it['unit'] or '' }}</td>
+      <td>{{ it['category'] or '' }}</td>
+      <td class="muted">{{ it['direction'] }}</td>
+      <td class="center">{{ '○' if it['in_radar'] else '' }}</td>
+      <td class="muted">{{ it['source_column'] or '' }}</td>
+      <td class="center">{% if it['is_active'] %}<span class="badge ok">有効</span>{% else %}<span class="badge">無効</span>{% endif %}</td>
+      <td><a class="btn small secondary" href="/criteria/{{ it['id'] }}">基準編集</a></td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+
+<div class="card">
+  <h2>帳票の固定文言・設定</h2>
+  <form method="post" action="/criteria/settings">
+    <div class="row">
+      <div class="field"><label>施設名</label><input type="text" name="facility_name" value="{{ settings.facility_name }}"></div>
+      <div class="field"><label>帳票タイトル</label><input type="text" name="report_title" value="{{ settings.report_title }}"></div>
+    </div>
+    <div class="field"><label>注意書き（帳票下部に固定表示）</label>
+      <textarea name="disclaimer">{{ settings.disclaimer }}</textarea></div>
+    <div class="field"><label>総合評価テンプレート（{total} {good} {poor} が使えます）</label>
+      <textarea name="summary_template">{{ settings.summary_template }}</textarea></div>
+    <button class="btn secondary">設定を保存</button>
+  </form>
+</div>
+{% endblock %}
