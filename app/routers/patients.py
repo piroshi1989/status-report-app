@@ -3,25 +3,17 @@
 from __future__ import annotations
 
 import sqlite3
-import uuid
-from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import RedirectResponse, Response
 
-from .. import config, repo
+from .. import repo, uploads
 from ..deps import get_db
 from ..domain import calc_age, band_for, AGE_BAND_LABELS
 from ..services import patient_importer
 from ..templating import templates
 
 router = APIRouter(prefix="/patients")
-
-
-def _uploads_dir() -> Path:
-    d = config.data_dir() / "uploads"
-    d.mkdir(parents=True, exist_ok=True)
-    return d
 
 
 @router.get("")
@@ -109,10 +101,8 @@ async def import_analyze(
     file: UploadFile = File(...),
     conn: sqlite3.Connection = Depends(get_db),
 ):
-    suffix = Path(file.filename or "patients.xlsx").suffix.lower() or ".xlsx"
-    token = f"{uuid.uuid4().hex}{suffix}"
-    saved = _uploads_dir() / token
-    saved.write_bytes(await file.read())
+    token = uploads.save_upload(await file.read(), file.filename)
+    saved = uploads.resolve_token(token)
 
     try:
         preview = patient_importer.analyze(conn, saved)
@@ -144,8 +134,8 @@ def import_commit(
     update_existing: str = Form(""),
     conn: sqlite3.Connection = Depends(get_db),
 ):
-    saved = _uploads_dir() / token
-    if not saved.exists():
+    saved = uploads.resolve_token(token)
+    if saved is None:
         return RedirectResponse("/patients/import", status_code=303)
     stats = patient_importer.commit(
         conn, saved, update_existing=(update_existing in ("1", "on", "true")),

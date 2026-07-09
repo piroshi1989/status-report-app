@@ -3,24 +3,16 @@
 from __future__ import annotations
 
 import sqlite3
-import uuid
-from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import RedirectResponse
 
-from .. import config
+from .. import uploads
 from ..deps import get_db
 from ..services import importer
 from ..templating import templates
 
 router = APIRouter(prefix="/upload")
-
-
-def _uploads_dir() -> Path:
-    d = config.data_dir() / "uploads"
-    d.mkdir(parents=True, exist_ok=True)
-    return d
 
 
 @router.get("")
@@ -38,10 +30,8 @@ async def analyze(
     measured_on: str = Form(""),
     conn: sqlite3.Connection = Depends(get_db),
 ):
-    suffix = Path(file.filename or "upload.xlsx").suffix.lower() or ".xlsx"
-    token = f"{uuid.uuid4().hex}{suffix}"
-    saved = _uploads_dir() / token
-    saved.write_bytes(await file.read())
+    token = uploads.save_upload(await file.read(), file.filename)
+    saved = uploads.resolve_token(token)
 
     try:
         preview = importer.analyze(conn, saved)
@@ -71,8 +61,8 @@ def commit(
     auto_register: str = Form(""),
     conn: sqlite3.Connection = Depends(get_db),
 ):
-    saved = _uploads_dir() / token
-    if not saved.exists():
+    saved = uploads.resolve_token(token)
+    if saved is None:
         return RedirectResponse("/upload", status_code=303)
     stats = importer.commit(
         conn, saved,
