@@ -17,15 +17,22 @@ AGE_BAND_LABELS = {
 
 
 def parse_date(value: str | date | None) -> date | None:
+    from datetime import datetime
+
     if value is None or value == "":
         return None
+    # datetime は date のサブクラスなので、先に date へ落とす(Excel の日付セル対策)
+    if isinstance(value, datetime):
+        return value.date()
     if isinstance(value, date):
         return value
     text = str(value).strip()
-    for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%Y.%m.%d"):
+    if text == "":
+        return None
+    # "1949-03-03 00:00:00" のような文字列も許容
+    text = text.split(" ")[0].split("T")[0]
+    for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%Y.%m.%d", "%Y年%m月%d日"):
         try:
-            from datetime import datetime
-
             return datetime.strptime(text, fmt).date()
         except ValueError:
             continue

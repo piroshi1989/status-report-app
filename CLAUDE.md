@@ -20,7 +20,8 @@ app/
   server.py           空きポート起動 + ブラウザオープン
   services/
     evaluation.py     基準解決 + 一様スコアリング(純関数・テスト対象)
-    importer.py       .xls/.xlsx 取込・列マッピング・派生(BMI)・未登録警告
+    importer.py       測定結果 .xls/.xlsx 取込・列マッピング・派生(BMI)・未登録警告
+    patient_importer.py 利用者 .xls/.xlsx 一括取込(新規/更新・空欄は非上書き)・テンプレ生成
     report.py         報告書データ組み立て(表・レーダー・総合評価)
     radar.py          matplotlib レーダー(画面/PDF 共通・PNG)
     pdf.py            ReportLab 個別/一括 PDF(IPAexフォント登録)
@@ -51,4 +52,6 @@ python run.py
 - 個人情報はローカル SQLite のみ。外部送信しない。`*.db` / `data/` / `output/` は Git 管理外。
 - `seed.py` の閾値は**サンプル**。実運用値は `scripts/migrate_excel.py` で移行して置換する。
 - テンプレート呼び出しは `templates.TemplateResponse("name.html", {"request": request, ...})` 記法(ラッパが新 API に変換)。
+- 取込の「空欄」は `None`(未入力=非上書き)、`0`/`無` とは区別する。`_is_blank` で `NaN`/`NaT` を先に弾く。
+- `routers/patients.py` の `/import*` は静的パスなので `/{pid}` 系より**先に**定義すること。
 - Starlette は新シグネチャ、SQLite 接続は `check_same_thread=False`(リクエスト毎に独立接続)。

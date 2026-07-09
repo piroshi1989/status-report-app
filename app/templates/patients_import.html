@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="flex">
+  <h1>利用者の Excel 一括取込</h1>
+  <a class="btn secondary" href="/patients">一覧へ戻る</a>
+</div>
+
+{% if error %}<div class="alert">{{ error }}</div>{% endif %}
+
+<div class="card">
+  <div class="notice">
+    1 行 = 1 利用者。<strong>利用者コード</strong>のみ必須です。<br>
+    既に登録済みのコードは<strong>更新</strong>、未登録は<strong>新規登録</strong>されます。
+    空欄の項目は既存の値を上書きしません。
+  </div>
+
+  <h3>認識される列名</h3>
+  <table>
+    <tr><th>項目</th><th>列名(いずれか)</th><th>入力例</th></tr>
+    <tr><td>利用者コード <span class="badge warn">必須</span></td><td>利用者コード / コード / ID / 利用者番号</td><td>U001</td></tr>
+    <tr><td>氏名</td><td>氏名 / 名前 / 利用者名</td><td>山田太郎</td></tr>
+    <tr><td>性別</td><td>性別</td><td>男 / 女（M / F、男性 / 女性 も可）</td></tr>
+    <tr><td>生年月日</td><td>生年月日 / 誕生日</td><td>1950-05-01（日付セル・1950/5/1 も可）</td></tr>
+    <tr><td>ペースメーカー</td><td>ペースメーカー / PM</td><td>有 / 無（1 / 0、○ / × も可）</td></tr>
+    <tr><td>服薬情報</td><td>服薬情報 / 服薬 / 薬剤</td><td>血糖降下薬</td></tr>
+    <tr><td>備考</td><td>備考 / メモ</td><td>要見守り</td></tr>
+  </table>
+  <p><a href="/patients/import/template">入力用テンプレート(.xlsx)をダウンロード</a></p>
+</div>
+
+<div class="card">
+  <form method="post" action="/patients/import/analyze" enctype="multipart/form-data">
+    <div class="field"><label>ファイル(.xls / .xlsx)</label>
+      <input type="file" name="file" accept=".xls,.xlsx" required></div>
+    <button class="btn">プレビュー</button>
+  </form>
+</div>
+{% endblock %}

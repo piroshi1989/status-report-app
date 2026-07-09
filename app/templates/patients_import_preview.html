@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>利用者取込プレビュー</h1>
+
+<div class="card">
+  <div>
+    ファイル: <strong>{{ orig_name }}</strong>
+    新規 <span class="badge ok">{{ preview.new_rows|length }}</span>
+    更新 <span class="badge">{{ preview.update_rows|length }}</span>
+    エラー <span class="badge {{ 'warn' if preview.has_errors }}">{{ preview.error_rows|length }}</span>
+  </div>
+  {% if preview.has_errors %}
+  <div class="alert" style="margin-top:12px">
+    エラー行は取り込まれません(スキップされます)。修正して再アップロードしてください。
+  </div>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>取込内容</h2>
+  <div style="overflow-x:auto">
+  <table>
+    <tr><th>行</th><th>区分</th><th>コード</th><th>氏名</th><th>性別</th><th>生年月日</th><th>PM</th><th>服薬情報</th><th>備考</th></tr>
+    {% for r in preview.rows %}
+    <tr>
+      <td class="center muted">{{ r.row_no }}</td>
+      <td class="center">
+        {% if r.status == 'new' %}<span class="badge ok">新規</span>
+        {% elif r.status == 'update' %}<span class="badge">更新</span>
+        {% else %}<span class="badge warn">エラー</span>{% endif %}
+      </td>
+      <td>{{ r.code }}</td>
+      <td>{{ r.name }}</td>
+      <td class="center">{{ sex_label(r.sex) }}</td>
+      <td>{{ r.birth_date or '' }}</td>
+      <td class="center">{% if r.pacemaker is not none %}{{ '有' if r.pacemaker else '無' }}{% endif %}</td>
+      <td>{{ r.med_info }}</td>
+      <td>
+        {{ r.note }}
+        {% if r.errors %}<div class="not-measured">{{ r.errors|join(' / ') }}</div>{% endif %}
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="9" class="muted center">取込対象の行がありません。</td></tr>
+    {% endfor %}
+  </table>
+  </div>
+</div>
+
+<div class="card">
+  <form method="post" action="/patients/import/commit">
+    <input type="hidden" name="token" value="{{ token }}">
+    <div class="field">
+      <label><input type="checkbox" name="update_existing" value="1" checked>
+        既に登録済みの利用者コードも更新する</label>
+      <span class="muted">（外すと既存コードの行はスキップし、新規のみ登録します。空欄の項目は上書きしません）</span>
+    </div>
+    <button class="btn" {{ 'disabled' if not (preview.new_rows or preview.update_rows) }}>この内容で取り込む</button>
+    <a class="btn secondary" href="/patients/import">やり直す</a>
+  </form>
+</div>
+{% endblock %}

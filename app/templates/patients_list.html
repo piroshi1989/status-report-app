@@ -2,8 +2,19 @@
 {% block content %}
 <div class="flex">
   <h1>利用者一覧</h1>
-  <a class="btn" href="/patients/new">＋ 新規登録</a>
+  <div>
+    <a class="btn secondary" href="/patients/import">Excel一括取込</a>
+    <a class="btn" href="/patients/new">＋ 新規登録</a>
+  </div>
 </div>
+
+{% if import_result %}
+<div class="notice">
+  取込完了: 新規 <strong>{{ import_result.created }}</strong> 件 /
+  更新 <strong>{{ import_result.updated }}</strong> 件 /
+  スキップ <strong>{{ import_result.skipped }}</strong> 件
+</div>
+{% endif %}
 
 <div class="card">
   <form method="get" action="/patients" class="row" style="align-items:flex-end">
