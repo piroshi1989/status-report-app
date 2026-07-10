@@ -50,7 +50,8 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
+    # UPX 圧縮は Windows Defender / SmartScreen の誤検知率を上げるため無効化する。
+    upx=False,
     upx_exclude=[],
     runtime_tmpdir=None,
     console=True,

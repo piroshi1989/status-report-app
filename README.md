@@ -53,6 +53,10 @@ pip install -r requirements-dev.txt
 python run.py                     # サーバ起動 + ブラウザ自動オープン
 ```
 
+> 非開発者向けのローカル実行手順(Windows での起動、データのバックアップ、
+> **Windows Defender / SmartScreen の挙動と対策**)は
+> [docs/ローカル実行手順.md](docs/ローカル実行手順.md) にまとめています。
+
 ブラウザを自動で開きたくない場合:
 
 ```bash
