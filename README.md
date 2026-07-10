@@ -97,18 +97,25 @@ python scripts/migrate_excel.py path/to/評価項目_改訂案.xlsx            #
 実ファイルのシート名・列見出しが想定と異なる場合は、`scripts/migrate_excel.py` 冒頭の
 `SHEET_MAP` / `HEADER_*` を調整してください。
 
-## Windows 配布用 exe のビルド
+## Windows 配布用 exe のビルド(Nuitka)
 
-```bash
+配布用実行ファイルは **Nuitka**(Python をネイティブコードにコンパイル)で生成します。
+PyInstaller の自己展開型より Windows Defender の誤検知が起きにくいためです。
+`--standalone`(フォルダ配布)で出力します。
+
+```powershell
 pip install -r requirements-dev.txt
-pyinstaller status_report.spec
-# dist/状況報告書アプリ.exe が生成される
+powershell -ExecutionPolicy Bypass -File scripts/build_nuitka.ps1
+# build\run.dist\ に「状況報告書アプリ.exe」+ 依存一式が生成される(フォルダごと配布)
 ```
 
-タグ push(`v*`)で GitHub Actions(windows-latest)が自動ビルドし、Releases に exe を添付します。
+Linux/macOS で動作確認する場合は `bash scripts/build_nuitka.sh`(Linux では別途 `patchelf` が必要)。
 
-> **SmartScreen について**: 未署名 exe のため、初回起動時に Windows SmartScreen の警告が出ることがあります。
-> 「詳細情報」→「実行」で起動できます。社内配布時は許可リスト登録を検討してください。
+タグ push(`v*`)で GitHub Actions(windows-latest)が Nuitka ビルドを実行し、
+`build\run.dist` を zip 化して Releases に添付します。
+
+> **SmartScreen について**: 未署名のため、初回起動時に Windows SmartScreen の警告が出ることがあります。
+> 「詳細情報」→「実行」で起動できます。詳細と対策は [docs/ローカル実行手順.md](docs/ローカル実行手順.md) を参照。
 
 ## データのバックアップ
 

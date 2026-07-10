@@ -53,7 +53,11 @@ def run() -> None:
             target=_open_browser_when_ready, args=(url, host, port), daemon=True
         ).start()
 
-    uvicorn.run("app.main:app", host=host, port=port, log_level="info")
+    # 文字列 "app.main:app" ではなくアプリ本体を渡す(Nuitka/PyInstaller が
+    # 静的解析で app.main を確実に取り込めるようにするため。reload は未使用)。
+    from .main import app as fastapi_app
+
+    uvicorn.run(fastapi_app, host=host, port=port, log_level="info")
 
 
 if __name__ == "__main__":

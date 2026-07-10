@@ -1,7 +1,7 @@
 # CLAUDE.md — status-report-app
 
 介護施設の測定結果を評価し「状況報告書」PDF を出力するローカル Web アプリ。
-FastAPI + Jinja2 + SQLite。matplotlib(レーダー)/ ReportLab(PDF)。配布は PyInstaller onefile。
+FastAPI + Jinja2 + SQLite。matplotlib(レーダー)/ ReportLab(PDF)。配布は Nuitka standalone(フォルダ配布)。
 
 ## 構成
 
@@ -55,3 +55,7 @@ python run.py
 - 取込の「空欄」は `None`(未入力=非上書き)、`0`/`無` とは区別する。`_is_blank` で `NaN`/`NaT` を先に弾く。
 - `routers/patients.py` の `/import*` は静的パスなので `/{pid}` 系より**先に**定義すること。
 - Starlette は新シグネチャ、SQLite 接続は `check_same_thread=False`(リクエスト毎に独立接続)。
+- 配布は Nuitka standalone(`scripts/build_nuitka.ps1` / `.sh`)。`config.py` は PyInstaller
+  (`sys._MEIPASS`)と Nuitka(`__compiled__`)を判別。書き込み先(data/output)は実 exe 隣、
+  リソース(templates/static/schema.sql)は `--include-data-*` で同梱し `__file__` 相対で解決。
+- アップロード token は `app/uploads.py` の `save_upload`/`resolve_token` 経由(パストラバーサル対策)。

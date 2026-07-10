@@ -35,16 +35,20 @@ jobs:
       - name: Install deps
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements-dev.txt
-      - name: Build exe (PyInstaller)
-        run: pyinstaller status_report.spec
+          pip install -r requirements.txt
+          pip install nuitka
+      - name: Build (Nuitka standalone)
+        run: powershell -ExecutionPolicy Bypass -File scripts/build_nuitka.ps1
+      - name: Package (zip)
+        shell: pwsh
+        run: Compress-Archive -Path build/run.dist/* -DestinationPath status-report-app-windows.zip -Force
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: status-report-app-windows
-          path: dist/*.exe
+          path: status-report-app-windows.zip
       - name: Attach to Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/*.exe
+          files: status-report-app-windows.zip
