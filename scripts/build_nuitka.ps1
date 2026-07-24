@@ -1,4 +1,4 @@
-# 状況報告書作成アプリ — Nuitka standalone ビルド(Windows)
+﻿# 状況報告書作成アプリ — Nuitka standalone ビルド(Windows)
 #
 #   powershell -ExecutionPolicy Bypass -File scripts/build_nuitka.ps1
 #
@@ -9,7 +9,7 @@
 $ErrorActionPreference = "Stop"
 $Name = "状況報告書アプリ"
 
-$Args = @(
+$NuitkaArgs = @(
     "--standalone",
     "--assume-yes-for-downloads",
     "--output-dir=build",
@@ -29,6 +29,6 @@ $Args = @(
     "run.py"
 )
 
-python -m nuitka @Args
+python -m nuitka @NuitkaArgs
 Write-Host "`n生成しました: build\run.dist\$Name.exe"
 Write-Host "配布時は build\run.dist フォルダごと渡してください。"
