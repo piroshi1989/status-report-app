@@ -43,6 +43,17 @@ class ReportData:
         return [ln for ln in self.lines if ln.in_radar]
 
 
+def summary_rank(avg_score: float) -> int:
+    """★スコア平均 → 総合評価文言のランク(1=最良〜4)。設定キー summary_rank_N に対応."""
+    if avg_score >= 4:
+        return 1
+    if avg_score >= 3:
+        return 2
+    if avg_score >= 2:
+        return 3
+    return 4
+
+
 def build_report(conn: sqlite3.Connection, patient_id: int, session_id: int) -> ReportData:
     from ..domain import calc_age
 
@@ -58,7 +69,7 @@ def build_report(conn: sqlite3.Connection, patient_id: int, session_id: int) -> 
     data = ReportData(patient=patient, session=session, age=age, age_band=age_band)
     data.disclaimer = repo.get_setting(conn, "disclaimer", "") or ""
 
-    good = poor = total_scored = 0
+    score_sum = total_scored = 0
     for it in items:
         m = measurements.get(it["id"])
         value = m["value"] if m else None
@@ -82,17 +93,12 @@ def build_report(conn: sqlite3.Connection, patient_id: int, session_id: int) -> 
         data.lines.append(line)
         if result.measured and result.score is not None:
             total_scored += 1
-            if result.score >= 4:
-                good += 1
-            elif result.score <= 2:
-                poor += 1
+            score_sum += result.score
         if line.in_radar:
             data.radar_labels.append(it["name"])
             data.radar_scores.append(result.score if (result.measured and result.score) else 0)
 
-    template = repo.get_setting(conn, "summary_template", "") or ""
-    try:
-        data.summary = template.format(total=total_scored, good=good, poor=poor)
-    except Exception:
-        data.summary = template
+    if total_scored:
+        rank = summary_rank(score_sum / total_scored)
+        data.summary = repo.get_setting(conn, f"summary_rank_{rank}", "") or ""
     return data

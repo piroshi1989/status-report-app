@@ -22,7 +22,10 @@ def item_list(request: Request, conn: sqlite3.Connection = Depends(get_db)):
         "facility_name": repo.get_setting(conn, "facility_name", "") or "",
         "report_title": repo.get_setting(conn, "report_title", "状況報告書") or "",
         "disclaimer": repo.get_setting(conn, "disclaimer", "") or "",
-        "summary_template": repo.get_setting(conn, "summary_template", "") or "",
+        "summary_rank_1": repo.get_setting(conn, "summary_rank_1", "") or "",
+        "summary_rank_2": repo.get_setting(conn, "summary_rank_2", "") or "",
+        "summary_rank_3": repo.get_setting(conn, "summary_rank_3", "") or "",
+        "summary_rank_4": repo.get_setting(conn, "summary_rank_4", "") or "",
     }
     return templates.TemplateResponse(
         "criteria_list.html",
@@ -132,11 +135,17 @@ def save_settings(
     facility_name: str = Form(""),
     report_title: str = Form("状況報告書"),
     disclaimer: str = Form(""),
-    summary_template: str = Form(""),
+    summary_rank_1: str = Form(""),
+    summary_rank_2: str = Form(""),
+    summary_rank_3: str = Form(""),
+    summary_rank_4: str = Form(""),
     conn: sqlite3.Connection = Depends(get_db),
 ):
     repo.set_setting(conn, "facility_name", facility_name)
     repo.set_setting(conn, "report_title", report_title)
     repo.set_setting(conn, "disclaimer", disclaimer)
-    repo.set_setting(conn, "summary_template", summary_template)
+    repo.set_setting(conn, "summary_rank_1", summary_rank_1)
+    repo.set_setting(conn, "summary_rank_2", summary_rank_2)
+    repo.set_setting(conn, "summary_rank_3", summary_rank_3)
+    repo.set_setting(conn, "summary_rank_4", summary_rank_4)
     return RedirectResponse("/criteria", status_code=303)

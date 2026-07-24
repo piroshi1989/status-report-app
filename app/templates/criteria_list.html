@@ -33,8 +33,14 @@
     </div>
     <div class="field"><label>注意書き（帳票下部に固定表示）</label>
       <textarea name="disclaimer">{{ settings.disclaimer }}</textarea></div>
-    <div class="field"><label>総合評価テンプレート（{total} {good} {poor} が使えます）</label>
-      <textarea name="summary_template">{{ settings.summary_template }}</textarea></div>
+    <div class="field"><label>総合評価文言（★平均が4以上）</label>
+      <textarea name="summary_rank_1">{{ settings.summary_rank_1 }}</textarea></div>
+    <div class="field"><label>総合評価文言（★平均が3以上4未満）</label>
+      <textarea name="summary_rank_2">{{ settings.summary_rank_2 }}</textarea></div>
+    <div class="field"><label>総合評価文言（★平均が2以上3未満）</label>
+      <textarea name="summary_rank_3">{{ settings.summary_rank_3 }}</textarea></div>
+    <div class="field"><label>総合評価文言（★平均が2未満）</label>
+      <textarea name="summary_rank_4">{{ settings.summary_rank_4 }}</textarea></div>
     <button class="btn secondary">設定を保存</button>
   </form>
 </div>
