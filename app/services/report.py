@@ -54,6 +54,27 @@ def summary_rank(avg_score: float) -> int:
     return 4
 
 
+WEIGHT_CHANGE_FORMULA = "weight_change_ratio"
+
+
+def _weight_change_value(
+    conn: sqlite3.Connection, patient_id: int, session_id: int,
+    weight_item_id: int, measurements: dict[int, sqlite3.Row],
+) -> tuple[Optional[float], str]:
+    """前回セッションと比較した体重比率(%)と表示文字列を返す。比較不可なら (None, '―')."""
+    from ..domain import weight_change_display, weight_change_ratio
+
+    curr_m = measurements.get(weight_item_id)
+    curr = curr_m["value"] if curr_m else None
+    prev_session = repo.previous_session_for_patient(conn, patient_id, session_id)
+    prev = None
+    if prev_session:
+        prev_m = repo.get_measurements(conn, prev_session["id"], patient_id).get(weight_item_id)
+        prev = prev_m["value"] if prev_m else None
+    ratio = weight_change_ratio(prev, curr)
+    return ratio, weight_change_display(ratio)
+
+
 def build_report(conn: sqlite3.Connection, patient_id: int, session_id: int) -> ReportData:
     from ..domain import calc_age
 
@@ -65,29 +86,38 @@ def build_report(conn: sqlite3.Connection, patient_id: int, session_id: int) -> 
 
     measurements = repo.get_measurements(conn, session_id, patient_id)
     items = repo.list_items(conn)
+    weight_item = repo.get_item_by_name(conn, "体重")
 
     data = ReportData(patient=patient, session=session, age=age, age_band=age_band)
     data.disclaimer = repo.get_setting(conn, "disclaimer", "") or ""
 
     score_sum = total_scored = 0
     for it in items:
-        m = measurements.get(it["id"])
-        value = m["value"] if m else None
-        raw_text = (m["raw_text"] if m else "") or ""
+        is_weight_change = it["derived_formula"] == WEIGHT_CHANGE_FORMULA
+        if is_weight_change and weight_item:
+            value, raw_text = _weight_change_value(
+                conn, patient_id, session_id, weight_item["id"], measurements
+            )
+        else:
+            m = measurements.get(it["id"])
+            value = m["value"] if m else None
+            raw_text = (m["raw_text"] if m else "") or ""
         rows = repo.criterion_rows_for_item(conn, it["id"])
         result = evaluate(
             rows, value,
             sex=patient["sex"], age_band=age_band,
             pacemaker=patient["pacemaker"],
         )
+        # 体重増減率は比較不可でも「未測定」ではなく raw_text("―")で表す
+        measured = result.measured or (is_weight_change and bool(raw_text))
         comment = result.comment or ""
         if not result.measured:
-            comment = "未測定"
+            comment = "" if is_weight_change else "未測定"
         line = ReportLine(
             item_id=it["id"], name=it["name"], unit=it["unit"] or "",
             category=it["category"] or "", in_radar=bool(it["in_radar"]),
-            measured=result.measured, value=value, raw_text=raw_text,
-            score=result.score, stars=stars(result.score if result.measured else None),
+            measured=measured, value=value, raw_text=raw_text,
+            score=result.score, stars=stars(result.score if measured else None),
             comment=comment,
         )
         data.lines.append(line)

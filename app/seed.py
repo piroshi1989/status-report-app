@@ -15,6 +15,7 @@ from . import repo
 ITEMS = [
     ("身長", "cm", "身体計測", "higher_better", 0, "身長", None, 0),
     ("体重", "kg", "身体計測", "range", 0, "体重", None, 0),
+    ("体重増減率", "%", "身体計測", "range", 0, None, "weight_change_ratio", 0),
     ("BMI", "", "栄養", "range", 1, None, "bmi", 0),
     ("HbA1c", "%", "検査値", "lower_better", 1, "HbA1c", None, 0),
     ("収縮期血圧", "mmHg", "検査値", "range", 1, "血圧", None, 0),
@@ -187,9 +188,23 @@ def apply_seed(conn: sqlite3.Connection) -> None:
     existing = conn.execute("SELECT COUNT(*) AS c FROM eval_items").fetchone()["c"]
     if existing == 0:
         _seed_items_and_criteria(conn)
+    else:
+        _backfill_new_items(conn)
     for k, v in SETTINGS.items():
         if repo.get_setting(conn, k) is None:
             repo.set_setting(conn, k, v)
+
+
+def _backfill_new_items(conn: sqlite3.Connection) -> None:
+    """導入時期が後になった既定項目を、初回シード済みの既存 DB に追記する."""
+    if repo.get_item_by_name(conn, "体重増減率") is None:
+        weight = repo.get_item_by_name(conn, "体重")
+        sort_order = weight["sort_order"] if weight else 0
+        repo.create_item(
+            conn, name="体重増減率", unit="%", category="身体計測", sort_order=sort_order,
+            direction="range", in_radar=0, source_column=None,
+            derived_formula="weight_change_ratio", is_qualitative=0,
+        )
 
 
 def _seed_items_and_criteria(conn: sqlite3.Connection) -> None:

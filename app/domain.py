@@ -68,3 +68,23 @@ def stars(score: int | None, max_score: int = 5) -> str:
         return "☆" * max_score
     n = max(0, min(max_score, int(score)))
     return "★" * n + "☆" * (max_score - n)
+
+
+def weight_change_ratio(prev: float | None, curr: float | None) -> float | None:
+    """前回体重に対する今回体重の比率(%)。どちらか欠測/前回0なら比較不可(None)."""
+    if prev is None or curr is None or prev == 0:
+        return None
+    return curr / prev * 100
+
+
+def weight_change_display(ratio: float | None) -> str:
+    """比率(%) → 「107%(7%増加)」形式の表示文字列。None は比較不可(―)."""
+    if ratio is None:
+        return "―"
+    pct = round(ratio)
+    diff = pct - 100
+    if diff > 0:
+        return f"{pct}%({diff}%増加)"
+    if diff < 0:
+        return f"{pct}%({abs(diff)}%減少)"
+    return f"{pct}%(変化なし)"

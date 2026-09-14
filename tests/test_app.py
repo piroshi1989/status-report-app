@@ -74,6 +74,45 @@ def test_upload_analyze_commit_and_report_pdf(client, make_xlsx):
     assert batch.content[:4] == b"%PDF"
 
 
+def test_weight_change_shown_after_second_upload(client, make_xlsx):
+    client.post("/patients/new", data={"code": "W1", "name": "体重さん", "sex": "M",
+                                        "birth_date": "1950-01-01", "pacemaker": "0"})
+
+    def _upload(weight, session_no, measured_on):
+        xlsx = make_xlsx([["W1", 160, weight, 6.0, "120/70", 30, 8.0]])
+        with open(xlsx, "rb") as f:
+            r = client.post(
+                "/upload/analyze",
+                files={"file": ("m.xlsx", f, "application/octet-stream")},
+                data={"session_no": str(session_no), "measured_on": measured_on},
+            )
+        import re
+        token = re.search(r'name="token" value="([^"]+)"', r.text).group(1)
+        r2 = client.post(
+            "/upload/commit",
+            data={"token": token, "orig_name": "m.xlsx", "session_no": str(session_no),
+                  "measured_on": measured_on},
+            follow_redirects=False,
+        )
+        return int(r2.headers["location"].split("session_id=")[1])
+
+    _upload(50, 1, "2026-01-01")
+    sid2 = _upload(45, 2, "2026-02-01")
+
+    from app import db, repo
+    with db.get_conn() as c:
+        p = repo.get_patient_by_code(c, "W1")
+
+    rep = client.get(f"/report?session_id={sid2}&patient_id={p['id']}")
+    assert rep.status_code == 200
+    assert "体重増減率" in rep.text
+    assert "90%(10%減少)" in rep.text
+
+    pdf = client.get(f"/report/pdf?session_id={sid2}&patient_id={p['id']}")
+    assert pdf.status_code == 200
+    assert pdf.content[:4] == b"%PDF"
+
+
 def test_criteria_add_and_delete(client):
     from app import db, repo
     with db.get_conn() as c:
