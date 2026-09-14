@@ -101,6 +101,15 @@ def list_sessions_for_patient(conn: sqlite3.Connection, pid: int) -> list[sqlite
     ).fetchall()
 
 
+def previous_session_for_patient(conn: sqlite3.Connection, pid: int, session_id: int) -> Optional[sqlite3.Row]:
+    """指定セッションより前(測定日が古い方)の、同一患者の直近セッションを返す."""
+    sessions = list_sessions_for_patient(conn, pid)  # 新しい順
+    for i, s in enumerate(sessions):
+        if s["id"] == session_id:
+            return sessions[i + 1] if i + 1 < len(sessions) else None
+    return None
+
+
 def patients_in_session(conn: sqlite3.Connection, sid: int) -> list[sqlite3.Row]:
     return conn.execute(
         """SELECT p.* FROM patients p

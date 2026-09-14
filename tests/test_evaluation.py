@@ -1,7 +1,7 @@
 """評価エンジンの単体テスト."""
 
 from app.services.evaluation import CriterionRow, evaluate, resolve_group
-from app.domain import age_to_band, calc_age, stars
+from app.domain import age_to_band, calc_age, stars, weight_change_display, weight_change_ratio
 
 
 def C(threshold, score, sex=None, age=None, pm=None, comment=None):
@@ -138,3 +138,38 @@ def test_stars():
     assert stars(5) == "★★★★★"
     assert stars(0) == "☆☆☆☆☆"
     assert stars(None) == "☆☆☆☆☆"
+
+
+# --- ドメイン: 体重増減率 ---------------------------------------------------
+
+def test_weight_change_ratio_decrease():
+    assert weight_change_ratio(50, 45) == 90.0
+
+
+def test_weight_change_ratio_increase():
+    assert weight_change_ratio(50, 53.5) == 107.0
+
+
+def test_weight_change_ratio_missing_values_is_none():
+    assert weight_change_ratio(None, 45) is None
+    assert weight_change_ratio(50, None) is None
+
+
+def test_weight_change_ratio_zero_previous_is_none():
+    assert weight_change_ratio(0, 45) is None
+
+
+def test_weight_change_display_decrease():
+    assert weight_change_display(90.0) == "90%(10%減少)"
+
+
+def test_weight_change_display_increase():
+    assert weight_change_display(107.0) == "107%(7%増加)"
+
+
+def test_weight_change_display_no_change():
+    assert weight_change_display(100.0) == "100%(変化なし)"
+
+
+def test_weight_change_display_none_is_dash():
+    assert weight_change_display(None) == "―"
