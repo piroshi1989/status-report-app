@@ -14,6 +14,11 @@ import numpy as np  # noqa: E402
 
 from .. import config  # noqa: E402
 
+# 項目名と円の間隔(pt)。既定の 4pt だと「骨密度(腰椎)」等の長いラベルが円に食い込む。
+# 重ならない最小値は 16pt(実測)で、ラベルが増減しても耐えるよう少し余裕を持たせている。
+# 大きくするほど相対的に円が小さくなる(tests/test_radar.py で重なりを担保)。
+LABEL_PAD = 18
+
 
 @lru_cache(maxsize=1)
 def _font() -> fm.FontProperties:
@@ -26,8 +31,8 @@ def _font() -> fm.FontProperties:
     return fm.FontProperties()
 
 
-def render_radar(labels: list[str], scores: list[int], max_score: int = 5) -> bytes:
-    """レーダーチャートを PNG バイト列で返す."""
+def build_figure(labels: list[str], scores: list[int], max_score: int = 5):
+    """レーダーチャートの Figure/Axes を組み立てて返す(描画位置の検証用に分離)."""
     font = _font()
     if not labels:
         labels = ["データなし"]
@@ -49,12 +54,19 @@ def render_radar(labels: list[str], scores: list[int], max_score: int = 5) -> by
     ax.set_yticklabels([str(i) for i in range(1, max_score + 1)], fontproperties=font, fontsize=8, color="#888")
     ax.set_xticks(angles[:-1])
     ax.set_xticklabels(labels, fontproperties=font, fontsize=9)
+    ax.tick_params(axis="x", pad=LABEL_PAD)
 
     ax.plot(angles, vals, color="#2b6cb0", linewidth=2)
     ax.fill(angles, vals, color="#2b6cb0", alpha=0.25)
     ax.grid(color="#cccccc", linewidth=0.6)
     ax.spines["polar"].set_color("#cccccc")
 
+    return fig, ax
+
+
+def render_radar(labels: list[str], scores: list[int], max_score: int = 5) -> bytes:
+    """レーダーチャートを PNG バイト列で返す."""
+    fig, _ax = build_figure(labels, scores, max_score)
     buf = io.BytesIO()
     fig.tight_layout(pad=1.2)
     fig.savefig(buf, format="png", bbox_inches="tight", transparent=False)
