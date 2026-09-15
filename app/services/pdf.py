@@ -27,6 +27,12 @@ from .report import ReportData
 
 FONT_NAME = "IPAexGothic"
 
+# 本文全体が A4 1 ページに収まるよう調整した値(tests/test_pdf_layout.py で担保)。
+# 評価項目を増やして 2 ページに割れた場合はここを詰める。
+RADAR_SIZE_MM = 82       # レーダーの一辺(mm)
+TABLE_FONT_SIZE = 8      # 詳細表の文字サイズ(pt)
+TABLE_CELL_PADDING = 1   # 詳細表セルの上下余白(pt)
+
 _CAT_COLORS = {
     "身体計測": colors.HexColor("#eef2f7"),
     "栄養": colors.HexColor("#fff4e6"),
@@ -56,7 +62,8 @@ def _styles(font: str):
         "title": ParagraphStyle("title", fontName=font, fontSize=15, leading=19, spaceAfter=2),
         "meta": ParagraphStyle("meta", fontName=font, fontSize=9, leading=12, textColor=colors.HexColor("#555")),
         "h2": ParagraphStyle("h2", fontName=font, fontSize=11, leading=14, spaceBefore=6, spaceAfter=3),
-        "cell": ParagraphStyle("cell", fontName=font, fontSize=8.5, leading=11),
+        "cell": ParagraphStyle("cell", fontName=font, fontSize=TABLE_FONT_SIZE,
+                               leading=TABLE_FONT_SIZE + 2.5),
         "small": ParagraphStyle("small", fontName=font, fontSize=7.5, leading=10, textColor=colors.HexColor("#666")),
         "summary": ParagraphStyle("summary", fontName=font, fontSize=9.5, leading=13),
     }
@@ -111,14 +118,14 @@ def build_flowables(data: ReportData, title: str = "状況報告書") -> list:
     tbl = Table(table_data, colWidths=col_widths, repeatRows=1)
     style = [
         ("FONTNAME", (0, 0), (-1, -1), font),
-        ("FONTSIZE", (0, 0), (-1, -1), 8.5),
+        ("FONTSIZE", (0, 0), (-1, -1), TABLE_FONT_SIZE),
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2b6cb0")),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
         ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#bbbbbb")),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("ALIGN", (2, 1), (5, -1), "CENTER"),
-        ("TOPPADDING", (0, 0), (-1, -1), 2),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+        ("TOPPADDING", (0, 0), (-1, -1), TABLE_CELL_PADDING),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), TABLE_CELL_PADDING),
     ]
     for idx, bg in row_bgs:
         style.append(("BACKGROUND", (0, idx), (-1, idx), bg))
@@ -131,7 +138,7 @@ def build_flowables(data: ReportData, title: str = "状況報告書") -> list:
     scores = data.radar_scores
     if labels:
         png = render_radar(labels, scores)
-        img = Image(io.BytesIO(png), width=95 * mm, height=95 * mm)
+        img = Image(io.BytesIO(png), width=RADAR_SIZE_MM * mm, height=RADAR_SIZE_MM * mm)
         img.hAlign = "CENTER"
         flow.append(Paragraph("■ 測定結果 相対グラフ", st["h2"]))
         flow.append(img)
