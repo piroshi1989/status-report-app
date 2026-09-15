@@ -98,7 +98,7 @@ def build_flowables(data: ReportData, title: str = "状況報告書") -> list:
     flow.append(Spacer(1, 4 * mm))
 
     # --- 詳細表 ---
-    header = ["区分", "評価項目", "実測値", "単位", "相対評価", "★表記", "コメント"]
+    header = ["区分", "評価項目", "前回", "今回", "単位", "相対評価", "★表記", "コメント"]
     table_data = [[Paragraph(h, st["cell"]) for h in header]]
     row_bgs = []
     for i, line in enumerate(data.lines, start=1):
@@ -106,6 +106,7 @@ def build_flowables(data: ReportData, title: str = "状況報告書") -> list:
         table_data.append([
             Paragraph(line.category, st["cell"]),
             Paragraph(line.name, st["cell"]),
+            Paragraph(line.prev_text, st["cell"]),
             Paragraph(_fmt_value(line), st["cell"]),
             Paragraph(line.unit, st["cell"]),
             Paragraph(score_txt, st["cell"]),
@@ -114,7 +115,10 @@ def build_flowables(data: ReportData, title: str = "状況報告書") -> list:
         ])
         row_bgs.append((i, _CAT_COLORS.get(line.category, colors.white)))
 
-    col_widths = [20 * mm, 30 * mm, 20 * mm, 14 * mm, 18 * mm, 24 * mm, 40 * mm]
+    # 区分/評価項目/前回/今回/単位/相対評価/★表記/コメント = 178mm(本文幅 180mm)。
+    # 各列が 1 行に収まる最小幅の実測値に余裕を足した配分。詰めるとセルが 2 行になり
+    # 表の高さが倍増する(tests/test_pdf_layout.py::test_pdf_table_cells_fit_on_one_line)。
+    col_widths = [20 * mm, 25 * mm, 17 * mm, 24 * mm, 14 * mm, 17 * mm, 20 * mm, 41 * mm]
     tbl = Table(table_data, colWidths=col_widths, repeatRows=1)
     style = [
         ("FONTNAME", (0, 0), (-1, -1), font),
@@ -123,7 +127,7 @@ def build_flowables(data: ReportData, title: str = "状況報告書") -> list:
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
         ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#bbbbbb")),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("ALIGN", (2, 1), (5, -1), "CENTER"),
+        ("ALIGN", (2, 1), (6, -1), "CENTER"),
         ("TOPPADDING", (0, 0), (-1, -1), TABLE_CELL_PADDING),
         ("BOTTOMPADDING", (0, 0), (-1, -1), TABLE_CELL_PADDING),
     ]

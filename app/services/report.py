@@ -24,6 +24,7 @@ class ReportLine:
     score: Optional[int]
     stars: str
     comment: str
+    prev_text: str = "―"
 
 
 @dataclass
@@ -56,22 +57,37 @@ def summary_rank(avg_score: float) -> int:
 
 WEIGHT_CHANGE_FORMULA = "weight_change_ratio"
 
+# 未測定・比較対象なしを表す表示文字列(「未測定」とは区別する)
+DASH = "―"
+
+
+def measurement_text(m: Optional[sqlite3.Row]) -> str:
+    """測定行 → 実測値の表示文字列。行なし/欠測は DASH."""
+    if m is None:
+        return DASH
+    raw = (m["raw_text"] or "").strip()
+    if raw and not raw.startswith("派生:"):
+        return raw
+    v = m["value"]
+    if v is None:
+        return DASH
+    return str(int(v)) if float(v).is_integer() else str(v)
+
 
 def _weight_change_value(
-    conn: sqlite3.Connection, patient_id: int, session_id: int,
-    weight_item_id: int, measurements: dict[int, sqlite3.Row],
+    weight_item_id: int,
+    measurements: dict[int, sqlite3.Row],
+    prev_measurements: dict[int, sqlite3.Row],
 ) -> tuple[Optional[float], str]:
-    """前回セッションと比較した体重比率(%)と表示文字列を返す。比較不可なら (None, '―')."""
+    """前回セッションと比較した体重比率(%)と表示文字列を返す。比較不可なら (None, DASH)."""
     from ..domain import weight_change_display, weight_change_ratio
 
     curr_m = measurements.get(weight_item_id)
-    curr = curr_m["value"] if curr_m else None
-    prev_session = repo.previous_session_for_patient(conn, patient_id, session_id)
-    prev = None
-    if prev_session:
-        prev_m = repo.get_measurements(conn, prev_session["id"], patient_id).get(weight_item_id)
-        prev = prev_m["value"] if prev_m else None
-    ratio = weight_change_ratio(prev, curr)
+    prev_m = prev_measurements.get(weight_item_id)
+    ratio = weight_change_ratio(
+        prev_m["value"] if prev_m else None,
+        curr_m["value"] if curr_m else None,
+    )
     return ratio, weight_change_display(ratio)
 
 
@@ -85,6 +101,10 @@ def build_report(conn: sqlite3.Connection, patient_id: int, session_id: int) -> 
     age_band = band_for(patient["birth_date"], measured_on)
 
     measurements = repo.get_measurements(conn, session_id, patient_id)
+    prev_session = repo.previous_session_for_patient(conn, patient_id, session_id)
+    prev_measurements = (
+        repo.get_measurements(conn, prev_session["id"], patient_id) if prev_session else {}
+    )
     items = repo.list_items(conn)
     weight_item = repo.get_item_by_name(conn, "体重")
 
@@ -96,7 +116,7 @@ def build_report(conn: sqlite3.Connection, patient_id: int, session_id: int) -> 
         is_weight_change = it["derived_formula"] == WEIGHT_CHANGE_FORMULA
         if is_weight_change and weight_item:
             value, raw_text = _weight_change_value(
-                conn, patient_id, session_id, weight_item["id"], measurements
+                weight_item["id"], measurements, prev_measurements
             )
         else:
             m = measurements.get(it["id"])
@@ -119,6 +139,8 @@ def build_report(conn: sqlite3.Connection, patient_id: int, session_id: int) -> 
             measured=measured, value=value, raw_text=raw_text,
             score=result.score, stars=stars(result.score if measured else None),
             comment=comment,
+            # 体重増減率はそれ自体が前回比なので前回値欄は出さない
+            prev_text=DASH if is_weight_change else measurement_text(prev_measurements.get(it["id"])),
         )
         data.lines.append(line)
         if result.measured and result.score is not None:
