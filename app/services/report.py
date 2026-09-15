@@ -8,7 +8,7 @@ from typing import Optional
 
 from .. import repo
 from ..domain import band_for, stars
-from .evaluation import evaluate
+from .evaluation import EvalResult, evaluate
 
 
 @dataclass
@@ -36,6 +36,8 @@ class ReportData:
     lines: list[ReportLine] = field(default_factory=list)
     radar_labels: list[str] = field(default_factory=list)
     radar_scores: list[int] = field(default_factory=list)
+    # 前回セッションのスコア(radar_labels と同じ並び)。比較対象がなければ空。
+    radar_prev_scores: list[int] = field(default_factory=list)
     summary: str = ""
     disclaimer: str = ""
 
@@ -91,6 +93,11 @@ def _weight_change_value(
     return ratio, weight_change_display(ratio)
 
 
+def _radar_score(result: EvalResult) -> int:
+    """評価結果 → レーダーの半径。未測定・スコアなしは 0(中心)."""
+    return result.score if (result.measured and result.score) else 0
+
+
 def build_report(conn: sqlite3.Connection, patient_id: int, session_id: int) -> ReportData:
     from ..domain import calc_age
 
@@ -104,6 +111,11 @@ def build_report(conn: sqlite3.Connection, patient_id: int, session_id: int) -> 
     prev_session = repo.previous_session_for_patient(conn, patient_id, session_id)
     prev_measurements = (
         repo.get_measurements(conn, prev_session["id"], patient_id) if prev_session else {}
+    )
+    # 前回スコアは前回の測定日時点の年代で評価する。誕生日で年代が繰り上がった利用者でも
+    # 前回の報告書に印字された★と一致する。
+    prev_age_band = (
+        band_for(patient["birth_date"], prev_session["measured_on"]) if prev_session else None
     )
     items = repo.list_items(conn)
     weight_item = repo.get_item_by_name(conn, "体重")
@@ -148,7 +160,15 @@ def build_report(conn: sqlite3.Connection, patient_id: int, session_id: int) -> 
             score_sum += result.score
         if line.in_radar:
             data.radar_labels.append(it["name"])
-            data.radar_scores.append(result.score if (result.measured and result.score) else 0)
+            data.radar_scores.append(_radar_score(result))
+            if prev_session:
+                prev_m = prev_measurements.get(it["id"])
+                prev_result = evaluate(
+                    rows, prev_m["value"] if prev_m else None,
+                    sex=patient["sex"], age_band=prev_age_band,
+                    pacemaker=patient["pacemaker"],
+                )
+                data.radar_prev_scores.append(_radar_score(prev_result))
 
     if total_scored:
         rank = summary_rank(score_sum / total_scored)

@@ -49,7 +49,8 @@ def report_index(
     radar_b64 = None
     if session_id and patient_id:
         data = _load_report(conn, patient_id, session_id)
-        png = radar_svc.render_radar(data.radar_labels, data.radar_scores)
+        png = radar_svc.render_radar(data.radar_labels, data.radar_scores,
+                                     prev_scores=data.radar_prev_scores)
         radar_b64 = base64.b64encode(png).decode("ascii")
 
     return templates.TemplateResponse(

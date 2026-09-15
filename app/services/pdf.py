@@ -141,7 +141,7 @@ def build_flowables(data: ReportData, title: str = "状況報告書") -> list:
     labels = data.radar_labels
     scores = data.radar_scores
     if labels:
-        png = render_radar(labels, scores)
+        png = render_radar(labels, scores, prev_scores=data.radar_prev_scores)
         img = Image(io.BytesIO(png), width=RADAR_SIZE_MM * mm, height=RADAR_SIZE_MM * mm)
         img.hAlign = "CENTER"
         flow.append(Paragraph("■ 測定結果 相対グラフ", st["h2"]))
