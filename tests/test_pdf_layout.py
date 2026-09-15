@@ -79,3 +79,51 @@ def test_report_pdf_keeps_one_page_with_more_items(client, make_xlsx):
     pdf = client.get(f"/report/pdf?session_id={sid}&patient_id={pid}")
     assert pdf.status_code == 200
     assert page_count(pdf.content) == 1
+
+
+# 全項目に値が入った状態の代表値(seed の既定項目に対応)
+FULL_VALUES = {
+    "身長": 162.0, "体重": 55.0, "HbA1c": 8.4, "収縮期血圧": 145.0, "嚥下機能": 2.0,
+    "口腔機能": 2.0, "聴力1000Hz": 45.0, "聴力4000Hz": 62.0, "骨密度(腰椎)": 72.0,
+    "骨密度(大腿骨)": 68.0, "Barthel Index": 65.0, "FIM": 95.0, "mini-Cog": 2.0,
+    "TUG": 14.2, "FRT": 18.0, "握力": 24.0, "SMI": 6.4, "喫食率": 7.0,
+    "片脚立位時間": 8.0, "BMI": 21.0,
+}
+
+
+def test_pdf_table_cells_fit_on_one_line(tmp_env):
+    """詳細表のどのセルも折り返さないこと.
+
+    列幅を詰めすぎるとセルが 2 行になり、表の高さが倍近くに膨らんで 1 ページに
+    収まらなくなる。列を増やすときはこのテストで各列の幅を担保する。
+    """
+    from reportlab.platypus import Table
+
+    from app import db, repo
+    from app.services.pdf import build_flowables
+    from app.services.report import build_report
+
+    db.init_db(seed=True)
+    with db.get_conn() as conn:
+        pid = repo.create_patient(conn, code="F1", name="全項目", sex="M", birth_date="1940-03-15")
+        s1 = repo.create_session(conn, 1, "2026-01-10", "f1.xlsx")
+        s2 = repo.create_session(conn, 2, "2026-07-10", "f2.xlsx")
+        for it in repo.list_items(conn):
+            v = FULL_VALUES.get(it["name"])
+            if v is None:
+                continue
+            repo.upsert_measurement(conn, s2, pid, it["id"], v, "145/88" if it["name"] == "収縮期血圧" else "")
+            repo.upsert_measurement(conn, s1, pid, it["id"],
+                                    58.0 if it["name"] == "体重" else v,
+                                    "128/80" if it["name"] == "収縮期血圧" else "")
+        data = build_report(conn, pid, s2)
+
+    tbl = next(f for f in build_flowables(data) if isinstance(f, Table))
+    inner = 12  # ReportLab Table 既定の LEFTPADDING + RIGHTPADDING(pt)
+    wrapped = [
+        (r, c, cell.getPlainText())
+        for r, row in enumerate(tbl._cellvalues)
+        for c, cell in enumerate(row)
+        if round(cell.wrap(tbl._argW[c] - inner, 10000)[1] / cell.style.leading) > 1
+    ]
+    assert wrapped == [], f"折り返しているセル: {wrapped}"
