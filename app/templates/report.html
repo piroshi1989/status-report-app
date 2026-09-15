@@ -41,11 +41,12 @@
 <div class="card">
   <h2>評価詳細</h2>
   <table>
-    <tr><th>区分</th><th>評価項目</th><th>実測値</th><th>単位</th><th class="center">相対評価</th><th>★表記</th><th>コメント</th></tr>
+    <tr><th>区分</th><th>評価項目</th><th>前回</th><th>今回</th><th>単位</th><th class="center">相対評価</th><th>★表記</th><th>コメント</th></tr>
     {% for ln in data.lines %}
     <tr>
       <td>{{ ln.category }}</td>
       <td>{{ ln.name }}</td>
+      <td class="right muted">{{ ln.prev_text }}</td>
       <td class="right">{% if ln.measured %}{{ ln.raw_text if (ln.raw_text and not ln.raw_text.startswith('派生:')) else (ln.value|num) }}{% else %}<span class="not-measured">未測定</span>{% endif %}</td>
       <td>{{ ln.unit }}</td>
       <td class="center">{{ ln.score if ln.measured and ln.score is not none else '―' }}</td>
