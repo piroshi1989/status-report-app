@@ -2,8 +2,18 @@
 {% block content %}
 <div class="flex">
   <h1>評価基準マスタ</h1>
-  <a class="btn" href="/criteria/new">＋ 項目を追加</a>
+  <div>
+    <a class="btn secondary" href="/criteria/import">評価基準を Excel から取込</a>
+    <a class="btn" href="/criteria/new">＋ 項目を追加</a>
+  </div>
 </div>
+
+{% if import_result %}
+<div class="notice">
+  評価基準を取り込みました(対象 {{ import_result.imported }} 項目{% if import_result.created %}、うち新規 {{ import_result.created }} 項目は「無効」で追加。報告書に出す場合は基準編集で「有効」にしてください{% endif %})。
+  {% if import_result.backup %}取込前のデータベースは data/backups/{{ import_result.backup }} に保存しました。{% endif %}
+</div>
+{% endif %}
 
 <div class="card">
   <table>

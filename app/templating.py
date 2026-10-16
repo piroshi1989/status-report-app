@@ -10,12 +10,13 @@ from __future__ import annotations
 from fastapi.templating import Jinja2Templates
 
 from . import config
-from .domain import AGE_BAND_LABELS, stars
+from .domain import AGE_BAND_LABELS, measured_display, stars
 
 _jinja = Jinja2Templates(directory=str(config.templates_dir()))
 
 _jinja.env.filters["stars"] = stars
 _jinja.env.globals["AGE_BAND_LABELS"] = AGE_BAND_LABELS
+_jinja.env.globals["measured_display"] = measured_display
 _jinja.env.globals["sex_label"] = lambda s: {"M": "男", "F": "女"}.get(s, "")
 
 

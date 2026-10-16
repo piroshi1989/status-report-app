@@ -37,6 +37,10 @@
   <h2>評価基準（区間下限値 → 相対評価）</h2>
   <p class="muted">各行は「その相対評価になる区間の下限値」を表します。判定は、測定値以下で最大の閾値の行を採用します。
     条件（性別 / 年代 / PM）は空欄＝全展開。より具体的な条件が優先されます。</p>
+  {% if item['derived_formula'] == 'weight_change_ratio' %}
+  <div class="notice">この項目は、報告書には前回比（例: 107%(7%増加)）を表示し、評価は<strong>体重減少率</strong>
+    ＝（前回体重 − 今回体重）÷ 前回体重 × 100 に対して行います（増加はマイナス）。</div>
+  {% endif %}
   <table>
     <tr><th>性別</th><th>年代</th><th>PM</th><th class="right">閾値(下限)</th><th class="center">評価</th><th>コメント</th><th></th></tr>
     {% for c in criteria %}

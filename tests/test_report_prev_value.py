@@ -216,11 +216,20 @@ def _pixels(png: bytes) -> bytes:
 
 def _pdf_radar_pixels(data) -> bytes:
     """PDF に埋め込まれるレーダー画像のピクセル."""
-    from reportlab.platypus import Image
+    from reportlab.platypus import Image, Table
 
     from app.services.pdf import build_flowables
 
-    img = next(f for f in build_flowables(data) if isinstance(f, Image))
+    def walk(flows):
+        # レーダーは総合評価と横並びの Table のセル内にある
+        for f in flows:
+            yield f
+            if isinstance(f, Table):
+                for row in f._cellvalues:
+                    for cell in row:
+                        yield from walk(cell if isinstance(cell, list) else [cell])
+
+    img = next(f for f in walk(build_flowables(data)) if isinstance(f, Image))
     return img._img.getRGBData()
 
 

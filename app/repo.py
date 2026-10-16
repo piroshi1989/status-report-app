@@ -203,6 +203,10 @@ def update_item(conn, item_id, **f) -> None:
     )
 
 
+def set_item_active(conn, item_id, active: bool) -> None:
+    conn.execute("UPDATE eval_items SET is_active=? WHERE id=?", (1 if active else 0, item_id))
+
+
 # --- eval_criteria ---------------------------------------------------------
 
 def list_criteria_for_item(conn, item_id) -> list[sqlite3.Row]:

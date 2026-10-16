@@ -15,6 +15,7 @@ from typing import Optional
 import pandas as pd
 
 from .. import repo
+from ..domain import derived_text, smi
 
 # 利用者コード列の候補ヘッダ
 CODE_HEADERS = ["利用者コード", "利用者id", "利用者番号", "コード", "id", "利用者"]
@@ -202,6 +203,11 @@ def _apply_derived(conn, item_by_id, col_to_item, row, values) -> None:
             if h and w and h > 0:
                 bmi = w / ((h / 100.0) ** 2)
                 values[iid] = (round(bmi, 1), f"派生:BMI={round(bmi,1)}")
+        elif formula == "smi":
+            # 評価基準 Excel と同じく丸めずに判定する(表示は小数2桁)
+            v = smi(value_of("筋肉量"), value_of("身長"))
+            if v is not None:
+                values[iid] = (v, derived_text(v, "SMI", 2))
 
 
 def analyze(conn: sqlite3.Connection, path: str | Path) -> ImportPreview:

@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from datetime import date
 
-# 評価基準の年代バンド。'50' は「50代以上」= 最若年の基準バケット(59歳以下を一括)。
+# 評価基準の年代バンド。'50' は「50代以下」= 最若年の基準バケット(59歳以下を一括)。
 AGE_BANDS = ["50", "60", "70", "80", "90"]
 
 AGE_BAND_LABELS = {
-    "50": "50代以上",
+    "50": "50代以下",
     "60": "60代",
     "70": "70代",
     "80": "80代",
@@ -75,6 +75,40 @@ def weight_change_ratio(prev: float | None, curr: float | None) -> float | None:
     if prev is None or curr is None or prev == 0:
         return None
     return curr / prev * 100
+
+
+def weight_loss_rate(prev: float | None, curr: float | None) -> float | None:
+    """体重減少率(%) = (前回体重 − 今回体重) ÷ 前回体重 × 100。増加はマイナス。
+
+    評価基準 Excel の「体重減少率」と同じ式・計算順(境界値の判定を一致させるため)。
+    """
+    if prev is None or curr is None or prev == 0:
+        return None
+    return (prev - curr) / prev * 100
+
+
+def smi(muscle_kg: float | None, height_cm: float | None) -> float | None:
+    """SMI(骨格筋指数) = 筋肉量(kg) ÷ 身長(m)²。評価基準 Excel と同じ式。欠測・身長0は None."""
+    if muscle_kg is None or height_cm is None or height_cm <= 0:
+        return None
+    return muscle_kg / ((height_cm / 100.0) ** 2)
+
+
+def derived_text(value: float, label: str, digits: int) -> str:
+    """派生項目の raw_text。表示は ``=`` 以降(丸めた値)を使い、評価は丸めない value で行う."""
+    return f"派生:{label}={value:.{digits}f}"
+
+
+def measured_display(raw_text: str | None, value: float | None) -> str | None:
+    """測定値の表示文字列。元セル文字列 > 派生値の丸め表示 > 数値。値なしは None."""
+    raw = (raw_text or "").strip()
+    if raw and not raw.startswith("派生:"):
+        return raw
+    if raw.startswith("派生:") and "=" in raw:
+        return raw.split("=", 1)[1]
+    if value is None:
+        return None
+    return str(int(value)) if float(value).is_integer() else str(value)
 
 
 def weight_change_display(ratio: float | None) -> str:

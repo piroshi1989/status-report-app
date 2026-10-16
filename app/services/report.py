@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from .. import repo
-from ..domain import band_for, stars
+from ..domain import band_for, measured_display, stars
 from .evaluation import EvalResult, evaluate
 
 
@@ -67,13 +67,7 @@ def measurement_text(m: Optional[sqlite3.Row]) -> str:
     """測定行 → 実測値の表示文字列。行なし/欠測は DASH."""
     if m is None:
         return DASH
-    raw = (m["raw_text"] or "").strip()
-    if raw and not raw.startswith("派生:"):
-        return raw
-    v = m["value"]
-    if v is None:
-        return DASH
-    return str(int(v)) if float(v).is_integer() else str(v)
+    return measured_display(m["raw_text"], m["value"]) or DASH
 
 
 def _weight_change_value(
@@ -91,6 +85,22 @@ def _weight_change_value(
         curr_m["value"] if curr_m else None,
     )
     return ratio, weight_change_display(ratio)
+
+
+def _weight_loss_value(
+    weight_item_id: int,
+    measurements: dict[int, sqlite3.Row],
+    prev_measurements: dict[int, sqlite3.Row],
+) -> Optional[float]:
+    """前回セッションからの体重減少率(%)。比較不可なら None."""
+    from ..domain import weight_loss_rate
+
+    curr_m = measurements.get(weight_item_id)
+    prev_m = prev_measurements.get(weight_item_id)
+    return weight_loss_rate(
+        prev_m["value"] if prev_m else None,
+        curr_m["value"] if curr_m else None,
+    )
 
 
 def _radar_score(result: EvalResult) -> int:
@@ -130,13 +140,16 @@ def build_report(conn: sqlite3.Connection, patient_id: int, session_id: int) -> 
             value, raw_text = _weight_change_value(
                 weight_item["id"], measurements, prev_measurements
             )
+            # 表示は前回比(%)だが、評価基準は Excel と同じ体重減少率で判定する
+            eval_value = _weight_loss_value(weight_item["id"], measurements, prev_measurements)
         else:
             m = measurements.get(it["id"])
             value = m["value"] if m else None
             raw_text = (m["raw_text"] if m else "") or ""
+            eval_value = value
         rows = repo.criterion_rows_for_item(conn, it["id"])
         result = evaluate(
-            rows, value,
+            rows, eval_value,
             sex=patient["sex"], age_band=age_band,
             pacemaker=patient["pacemaker"],
         )

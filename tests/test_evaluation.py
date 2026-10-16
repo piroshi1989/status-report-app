@@ -128,7 +128,7 @@ def test_qualitative_code_mapping():
 def test_age_and_band():
     assert calc_age("1950-01-01", "2026-07-09") == 76
     assert age_to_band(76) == "70"
-    assert age_to_band(55) == "50"   # 50代以上バケット
+    assert age_to_band(55) == "50"   # 50代以下バケット
     assert age_to_band(45) == "50"   # クランプ
     assert age_to_band(95) == "90"   # クランプ
 

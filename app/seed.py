@@ -15,6 +15,8 @@ from . import repo
 ITEMS = [
     ("身長", "cm", "身体計測", "higher_better", 0, "身長", None, 0),
     ("体重", "kg", "身体計測", "range", 0, "体重", None, 0),
+    # SMI 算出用の生値。帳票には出さない(無効項目でも取込の列マッピングには使われる)
+    ("筋肉量", "kg", "身体計測", "higher_better", 0, "筋肉量", None, 0),
     ("体重増減率", "%", "身体計測", "range", 0, None, "weight_change_ratio", 0),
     ("BMI", "", "栄養", "range", 1, None, "bmi", 0),
     ("HbA1c", "%", "検査値", "lower_better", 1, "HbA1c", None, 0),
@@ -31,10 +33,13 @@ ITEMS = [
     ("TUG", "秒", "身体機能", "lower_better", 1, "TUG", None, 0),
     ("FRT", "cm", "身体機能", "higher_better", 1, "FRT", None, 0),
     ("握力", "kg", "身体機能", "higher_better", 1, "握力", None, 0),
-    ("SMI", "kg/m2", "身体機能", "higher_better", 1, "筋肉量", None, 0),
+    ("SMI", "kg/m2", "身体機能", "higher_better", 1, None, "smi", 0),
     ("喫食率", "割", "栄養", "higher_better", 1, "喫食率", None, 0),
     ("片脚立位時間", "秒", "身体機能", "higher_better", 1, "開眼片脚立位", None, 1),
 ]
+
+# 既定で無効にする項目(帳票に出さない)
+INACTIVE_ITEMS = {"筋肉量"}
 
 # item_name -> list of (condition, list-of-(threshold, score, comment))
 # condition = dict(sex=?, age_band=?, pacemaker=?)  省略キーは NULL(全展開)
@@ -197,6 +202,7 @@ def apply_seed(conn: sqlite3.Connection) -> None:
 
 def _backfill_new_items(conn: sqlite3.Connection) -> None:
     """導入時期が後になった既定項目を、初回シード済みの既存 DB に追記する."""
+    _backfill_muscle_mass(conn)
     if repo.get_item_by_name(conn, "体重増減率") is None:
         weight = repo.get_item_by_name(conn, "体重")
         sort_order = weight["sort_order"] if weight else 0
@@ -204,6 +210,51 @@ def _backfill_new_items(conn: sqlite3.Connection) -> None:
             conn, name="体重増減率", unit="%", category="身体計測", sort_order=sort_order,
             direction="range", in_radar=0, source_column=None,
             derived_formula="weight_change_ratio", is_qualitative=0,
+        )
+
+
+def _backfill_muscle_mass(conn: sqlite3.Connection) -> None:
+    """SMI を「筋肉量(kg) ÷ 身長(m)²」の派生項目に切り替える(初期版は筋肉量 kg をそのまま SMI にしていた).
+
+    既存 DB の SMI 測定値(実体は筋肉量 kg)は「筋肉量」項目へ移し、同じ回の身長から
+    SMI を算出し直す。身長が無い回は算出できないので未測定にする。
+    SMI 項目が初期版の設定(取込列=筋肉量・派生なし)のときだけ行うので、1 回しか走らない。
+    """
+    from .domain import derived_text, smi
+
+    muscle = repo.get_item_by_name(conn, "筋肉量")
+    if muscle is None:
+        weight = repo.get_item_by_name(conn, "体重")
+        muscle_id = repo.create_item(
+            conn, name="筋肉量", unit="kg", category="身体計測",
+            sort_order=weight["sort_order"] if weight else 0, direction="higher_better",
+            in_radar=0, source_column="筋肉量", derived_formula=None, is_qualitative=0,
+        )
+        repo.set_item_active(conn, muscle_id, False)
+    else:
+        muscle_id = muscle["id"]
+
+    item = repo.get_item_by_name(conn, "SMI")
+    if item is None or item["derived_formula"] or (item["source_column"] or "").strip() != "筋肉量":
+        return
+    conn.execute(
+        "UPDATE eval_items SET source_column=NULL, derived_formula='smi' WHERE id=?", (item["id"],)
+    )
+    height = repo.get_item_by_name(conn, "身長")
+    rows = conn.execute(
+        "SELECT * FROM measurements WHERE item_id=? AND COALESCE(raw_text,'') NOT LIKE '派生:%'",
+        (item["id"],),
+    ).fetchall()
+    for m in rows:
+        repo.upsert_measurement(conn, m["session_id"], m["patient_id"], muscle_id, m["value"], m["raw_text"])
+        h = conn.execute(
+            "SELECT value FROM measurements WHERE session_id=? AND patient_id=? AND item_id=?",
+            (m["session_id"], m["patient_id"], height["id"] if height else -1),
+        ).fetchone()
+        v = smi(m["value"], h["value"] if h else None)
+        conn.execute(
+            "UPDATE measurements SET value=?, raw_text=? WHERE id=?",
+            (v, derived_text(v, "SMI", 2) if v is not None else "", m["id"]),
         )
 
 
@@ -216,6 +267,8 @@ def _seed_items_and_criteria(conn: sqlite3.Connection) -> None:
             derived_formula=derived, is_qualitative=qual,
         )
         name_to_id[name] = item_id
+        if name in INACTIVE_ITEMS:
+            repo.set_item_active(conn, item_id, False)
 
     for name, groups in CRITERIA.items():
         item_id = name_to_id[name]

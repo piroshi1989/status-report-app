@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="flex">
+  <h1>評価基準の Excel 取込</h1>
+  <a class="btn secondary" href="/criteria">一覧へ戻る</a>
+</div>
+
+{% if error %}<div class="alert">{{ error }}</div>{% endif %}
+
+<div class="card">
+  <div class="notice">
+    「評価項目 改訂案」形式の Excel(.xlsx)から、年代・ペースメーカー有無・性別ごとの
+    <strong>閾値・相対評価・評価コメント</strong>を取り込みます。<br>
+    Excel に載っている項目は、評価基準が<strong>すべて置き換わります</strong>(Excel に無い項目は変更しません)。
+    取込の直前に、現在のデータベースを <code>data/backups</code> に自動で保存します。
+  </div>
+
+  <h3>読み込む形式</h3>
+  <table>
+    <tr><th>対象</th><th>内容</th></tr>
+    <tr><td>シート</td><td>「50代以下」「60代」「60代　ペースメーカー」…「90代　ペースメーカー」。それ以外のシートは読み飛ばします</td></tr>
+    <tr><td>列</td><td>評価項目 / 評価基準内容(区間の下限値) / 相対評価(1〜5) / 評価コメント</td></tr>
+    <tr><td>性別</td><td>「男　BMI」「女　握力(kg)」のように項目名の先頭に男・女を付けます</td></tr>
+    <tr><td>定性項目</td><td>FIM(社会性)・摂食嚥下機能・口腔内は、評価基準内容のコード値(1〜5)を評価とします</td></tr>
+  </table>
+</div>
+
+<div class="card">
+  <form method="post" action="/criteria/import/analyze" enctype="multipart/form-data">
+    <div class="field"><label>ファイル(.xlsx)</label>
+      <input type="file" name="file" accept=".xlsx" required></div>
+    <button class="btn">プレビュー</button>
+  </form>
+</div>
+{% endblock %}
