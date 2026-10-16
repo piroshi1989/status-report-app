@@ -45,6 +45,9 @@ BASE_COL_WIDTHS_MM = [20, 25, 17, 24, 14, 17, 20]
 _CELL_HPAD_MM = 12 / 72 * 25.4   # Table 既定の左右パディング合計(12pt)。文字幅と違い縮まない
 
 _CAT_COLORS = {
+    # 評価基準 Excel 最終版の区分
+    "看護": colors.HexColor("#f0f7ee"),
+    "体力": colors.HexColor("#eef2f7"),
     "身体計測": colors.HexColor("#eef2f7"),
     "栄養": colors.HexColor("#fff4e6"),
     "検査値": colors.HexColor("#f0f7ee"),
@@ -121,7 +124,8 @@ def build_flowables(
     table_data = [[Paragraph(h, st["cell"]) for h in header]]
     row_bgs = []
     for i, line in enumerate(data.lines, start=1):
-        score_txt = "―" if not line.measured else str(line.score if line.score is not None else "―")
+        # 未計測でも評価が付く項目(HbA1c=★5 等)は評価を出す
+        score_txt = "―" if line.score is None else str(line.score)
         table_data.append([
             Paragraph(line.category, st["cell"]),
             Paragraph(line.name, st["cell"]),

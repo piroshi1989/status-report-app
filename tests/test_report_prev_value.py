@@ -76,6 +76,7 @@ def test_weight_change_row_has_no_prev_text(tmp_env):
     with db.get_conn() as conn:
         pid, s1, s2 = _setup(conn)
         wid = repo.get_item_by_name(conn, "体重")["id"]
+        repo.set_item_active(conn, wid, True)   # 既定では帳票に出さない項目
         repo.upsert_measurement(conn, s1, pid, wid, 50.0, "")
         repo.upsert_measurement(conn, s2, pid, wid, 45.0, "")
 

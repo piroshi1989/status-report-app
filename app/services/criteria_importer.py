@@ -50,15 +50,19 @@ EXCEL_ITEM_MAP = {
     "聴力(4000hz)": "聴力4000Hz",
     "視力": "視力",
     "下腿周囲長(cm)": "下腿周囲長",
+    "crp": "CRP",
 }
 
-# アプリに既定で無い項目。DB に無ければ「無効」で作成する(有効化は基準マスタ画面で)。
-# after: 表示順をこの項目に揃える
+# 初期版のアプリに無かった項目。通常は起動時の seed で作られるが、DB に無ければ「無効」で作成する
+# (有効化は基準マスタ画面で)。after: 表示順をこの項目に揃える
 NEW_ITEMS = {
-    "視力": dict(unit="", category="感覚機能", direction="higher_better", in_radar=0,
+    "視力": dict(unit="", category="看護", direction="higher_better", in_radar=0,
                  source_column="視力", after="聴力4000Hz"),
-    "下腿周囲長": dict(unit="cm", category="身体機能", direction="higher_better", in_radar=0,
-                    source_column="下腿周囲長", after="SMI"),
+    # ペースメーカー有の利用者だけ SMI の代わりに帳票に出す
+    "下腿周囲長": dict(unit="cm", category="栄養", direction="higher_better", in_radar=1,
+                    source_column="下腿周囲長", after="SMI", pm_display="with_pm"),
+    "CRP": dict(unit="mg/dL", category="看護", direction="lower_better", in_radar=0,
+                source_column="CRP", after="骨密度(腰椎)"),
 }
 
 # このブロックは評価基準ではない(総合評価文言は帳票設定で管理する)
@@ -474,8 +478,8 @@ def apply(conn: sqlite3.Connection, preview: CriteriaPreview) -> dict:
                 sort_order=after["sort_order"] if after else 0,
                 direction=spec.get("direction", "higher_better"), in_radar=spec.get("in_radar", 0),
                 source_column=spec.get("source_column"), derived_formula=None, is_qualitative=0,
+                is_active=0, pm_display=spec.get("pm_display"),
             )
-            repo.set_item_active(conn, item_id, False)
             stats["created"] += 1
         else:
             stats["updated"] += 1

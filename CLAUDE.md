@@ -58,6 +58,17 @@ python run.py
 - 体重増減率は前回比(107%表記)で表示し、評価は Excel と同じ**体重減少率**
   (前回−今回)÷前回×100 で行う(`report._weight_loss_value`)。
 - 年代バンド '50' は「50代以下」(59歳以下を一括)。
+- 帳票の項目・区分(看護/体力/栄養)・並び順は評価基準 Excel 最終版「グラフ①」に合わせる
+  (`seed.REPORT_LAYOUT`。既存 DB へは起動時に 1 回だけ適用し、設定キー
+  `report_layout_final_applied` で記録。既定項目は改名されていても取込列名/派生式で特定し、
+  施設が既定項目に加えていた有効・区分・順の設定も上書きする。施設独自項目は触らない)。
+  PM 有でも下腿周囲長にその年代の基準が無ければ SMI に戻す(`report.items_for_patient`)。
+  総合評価は既定 18 行(`seed.layout_item_ids`)だけで数える。身長・体重・筋肉量は
+  無効項目だが取込はされ、BMI・SMI・体重増減率の算出に使う。
+- 項目属性 `pm_display`(SMI=PM無のみ / 下腿周囲長=PM有のみ)、`unmeasured_score`・
+  `unmeasured_comment`(未計測の HbA1c=★5、血圧=★1)。列追加は `db._ADDED_COLUMNS` で既存 DB に ALTER。
+- 総合評価は帳票項目のうち★4以上の個数(14以上/8〜13/5〜7/4以下 → summary_rank_1..4、
+  Excel 最終版と同じ)。実測した項目が 1 つも無ければ出さない。
 - PDF はコメント長で表の高さが変わるため、`pdf.fitted_flowables` が `FIT_STEPS`
   (表の文字 8→6pt・レーダー縮小)から A4 1 ページに収まる最大段階を選ぶ。
 - テンプレート呼び出しは `templates.TemplateResponse("name.html", {"request": request, ...})` 記法(ラッパが新 API に変換)。

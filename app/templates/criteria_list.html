@@ -43,13 +43,14 @@
     </div>
     <div class="field"><label>注意書き（帳票下部に固定表示）</label>
       <textarea name="disclaimer">{{ settings.disclaimer }}</textarea></div>
-    <div class="field"><label>総合評価文言（★平均が4以上）</label>
+    <p class="muted">総合評価は、帳票に出る項目のうち★4 以上の項目数で選びます（評価基準 Excel 最終版と同じ区切り）。</p>
+    <div class="field"><label>総合評価文言（★4以上が 14 項目以上）</label>
       <textarea name="summary_rank_1">{{ settings.summary_rank_1 }}</textarea></div>
-    <div class="field"><label>総合評価文言（★平均が3以上4未満）</label>
+    <div class="field"><label>総合評価文言（★4以上が 8〜13 項目）</label>
       <textarea name="summary_rank_2">{{ settings.summary_rank_2 }}</textarea></div>
-    <div class="field"><label>総合評価文言（★平均が2以上3未満）</label>
+    <div class="field"><label>総合評価文言（★4以上が 5〜7 項目）</label>
       <textarea name="summary_rank_3">{{ settings.summary_rank_3 }}</textarea></div>
-    <div class="field"><label>総合評価文言（★平均が2未満）</label>
+    <div class="field"><label>総合評価文言（★4以上が 4 項目以下）</label>
       <textarea name="summary_rank_4">{{ settings.summary_rank_4 }}</textarea></div>
     <button class="btn secondary">設定を保存</button>
   </form>

@@ -178,9 +178,9 @@ def test_analyze_handles_excel_layout_quirks(tmp_env, criteria_xlsx):
         (1.0, 1, "全面的に介助が必要です。"), (4.0, 4, "適切な交流が出来ています。"),
     ]
 
-    # 降順に書かれた視力は閾値昇順に並べ替える
+    # 降順に書かれた視力は閾値昇順に並べ替える(視力は seed 済みの無効項目)
     eye = _plan(pv, "視力")
-    assert eye.is_new
+    assert not eye.is_new
     assert [r[0] for r in eye.cond_sets[0].rows] == [0.0, 0.3, 1.0]
 
     # 性別が B 列にある下腿周囲長は女性・PM 有の基準になる(PM 無シートには無い)
@@ -198,6 +198,8 @@ def test_analyze_handles_excel_layout_quirks(tmp_env, criteria_xlsx):
 def test_apply_replaces_criteria_and_creates_inactive_items(tmp_env, criteria_xlsx):
     db.init_db(seed=True)
     with db.get_conn() as conn:
+        # seed に無い古い DB を想定して、Excel 由来の項目を消しておく(取込で無効のまま作られる)
+        conn.execute("DELETE FROM eval_items WHERE name IN ('視力', '下腿周囲長')")
         one_leg = repo.get_item_by_name(conn, "片脚立位時間")
         before_one_leg = len(repo.list_criteria_for_item(conn, one_leg["id"]))
         pv = ci.analyze(conn, criteria_xlsx)
@@ -225,7 +227,7 @@ def test_import_screen_flow_with_backup(client, criteria_xlsx):
         r = client.post("/criteria/import/analyze", files={"file": ("基準.xlsx", f, "application/octet-stream")})
     assert r.status_code == 200
     assert "歩行速度" in r.text           # 未対応項目の表示
-    assert "新規(無効で追加)" in r.text
+    assert "視力" in r.text                  # seed 済みの無効項目にも取り込む
     assert "90代男非常に優れる" in r.text   # 条件ごとの詳細
     token = re.search(r'name="token" value="([^"]+)"', r.text).group(1)
 
@@ -308,16 +310,19 @@ def test_unchecking_active_disables_item(client):
 
 # --- 実ファイル(リポジトリ直下に置かれている場合のみ) ------------------------------
 
-REAL_FILES = sorted(Path(__file__).resolve().parent.parent.glob("評価項目*改訂案*.xlsx"))
+REAL_FILES = sorted(Path(__file__).resolve().parent.parent.glob("評価項目*.xlsx"))
 
 
 @pytest.mark.skipif(not REAL_FILES, reason="評価基準の実 Excel が無い")
-def test_real_workbook_maps_every_item(tmp_env):
+@pytest.mark.parametrize("path", REAL_FILES, ids=lambda p: p.stem)
+def test_real_workbook_maps_every_item(tmp_env, path):
     db.init_db(seed=True)
     with db.get_conn() as conn:
-        pv = ci.analyze(conn, REAL_FILES[0])
+        pv = ci.analyze(conn, path)
     assert pv.unknown == []
-    assert len(pv.plans) == 20
+    # 最終版は CRP が増えている
+    assert len(pv.plans) == (21 if "最終版" in path.name else 20)
+    assert all(not p.is_new for p in pv.plans)   # Excel の項目はすべて seed 済み
     grip = _plan(pv, "握力")
     tops = {(c.sex, c.age_band): c.rows[-1][0] for c in grip.cond_sets}
     assert tops[("M", "50")] == 46 and tops[("M", "80")] == 32

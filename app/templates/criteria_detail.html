@@ -29,6 +29,23 @@
       <div class="field"><label><input type="checkbox" name="is_qualitative" value="1" {{ 'checked' if item['is_qualitative'] }}> 定性値（コード値）</label></div>
       <div class="field"><label><input type="checkbox" name="is_active" value="1" {{ 'checked' if item['is_active'] }}> 有効</label></div>
     </div>
+    <div class="row">
+      <div class="field"><label>帳票に出す利用者</label>
+        <select name="pm_display">
+          <option value="" {{ 'selected' if not item['pm_display'] }}>全員</option>
+          <option value="without_pm" {{ 'selected' if item['pm_display']=='without_pm' }}>ペースメーカー無のみ(例: SMI)</option>
+          <option value="with_pm" {{ 'selected' if item['pm_display']=='with_pm' }}>ペースメーカー有のみ(例: 下腿周囲長)</option>
+        </select></div>
+      <div class="field"><label>未計測時の評価</label>
+        <select name="unmeasured_score">
+          <option value="" {{ 'selected' if item['unmeasured_score'] is none }}>評価しない(☆☆☆☆☆)</option>
+          {% for n in [5,4,3,2,1] %}
+          <option value="{{ n }}" {{ 'selected' if item['unmeasured_score']==n }}>★{{ n }}</option>
+          {% endfor %}
+        </select></div>
+      <div class="field" style="flex:2"><label>未計測時のコメント（空欄＝同じ評価の基準行のコメント）</label>
+        <input type="text" name="unmeasured_comment" value="{{ item['unmeasured_comment'] or '' }}"></div>
+    </div>
     <button class="btn secondary">項目を保存</button>
   </form>
 </div>

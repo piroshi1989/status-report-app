@@ -49,7 +49,7 @@
       <td class="right muted">{{ ln.prev_text }}</td>
       <td class="right">{% if ln.measured %}{{ measured_display(ln.raw_text, ln.value) or (ln.value|num) }}{% else %}<span class="not-measured">未測定</span>{% endif %}</td>
       <td>{{ ln.unit }}</td>
-      <td class="center">{{ ln.score if ln.measured and ln.score is not none else '―' }}</td>
+      <td class="center">{{ ln.score if ln.score is not none else '―' }}</td>
       <td class="stars">{{ ln.stars }}</td>
       <td>{{ ln.comment }}</td>
     </tr>

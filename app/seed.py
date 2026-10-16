@@ -1,8 +1,11 @@
 """初回起動時の既定マスタ・シード投入.
 
-注意: eval_criteria の閾値は**サンプル値**。実運用の閾値は既存 Excel
-(評価項目 改訂案.xlsx)から ``scripts/migrate_excel.py`` で移行して置き換える。
+注意: eval_criteria の閾値は**サンプル値**。実運用の閾値は評価基準 Excel
+(評価項目_最終版)を基準マスタ画面の「評価基準を Excel から取込」で置き換える。
 評価エンジンのロジック自体はこのサンプルに依存しない(tests/ で担保)。
+
+帳票に載せる項目・区分・並び順は評価基準 Excel 最終版の「グラフ①」シートに合わせる
+(``REPORT_LAYOUT``)。
 """
 
 from __future__ import annotations
@@ -36,10 +39,34 @@ ITEMS = [
     ("SMI", "kg/m2", "身体機能", "higher_better", 1, None, "smi", 0),
     ("喫食率", "割", "栄養", "higher_better", 1, "喫食率", None, 0),
     ("片脚立位時間", "秒", "身体機能", "higher_better", 1, "開眼片脚立位", None, 1),
+    # 評価基準 Excel にある項目。下腿周囲長はペースメーカー有の利用者の SMI の代わり
+    ("下腿周囲長", "cm", "栄養", "higher_better", 1, "下腿周囲長", None, 0),
+    ("視力", "", "看護", "higher_better", 0, "視力", None, 0),
+    ("CRP", "mg/dL", "看護", "lower_better", 0, "CRP", None, 0),
 ]
 
-# 既定で無効にする項目(帳票に出さない)
-INACTIVE_ITEMS = {"筋肉量"}
+# 帳票に載せる項目と区分・並び順(評価基準 Excel 最終版「グラフ①」の 18 行)。
+# ここに無い既定項目(身長・体重・筋肉量・片脚立位時間・視力・CRP)は無効にする。
+# 無効でも測定値の取込は行われ、身長・体重・筋肉量は BMI・SMI・体重増減率の算出に使う。
+REPORT_LAYOUT = [
+    ("看護", ["HbA1c", "収縮期血圧", "嚥下機能", "口腔機能", "聴力1000Hz", "聴力4000Hz",
+              "骨密度(大腿骨)", "骨密度(腰椎)"]),
+    ("体力", ["Barthel Index", "FIM", "mini-Cog", "TUG", "FRT", "握力"]),
+    # SMI と下腿周囲長は同じ行(PM 無は SMI、PM 有は下腿周囲長)
+    ("栄養", [("SMI", "下腿周囲長"), "BMI", "体重増減率", "喫食率"]),
+]
+
+# 項目ごとの追加設定(最終版の計測結果入力シートの式に合わせる)
+ITEM_OPTIONS = {
+    "SMI": {"pm_display": "without_pm"},
+    "下腿周囲長": {"pm_display": "with_pm"},
+    # 未計測の HbA1c は★5(糖尿病の薬が無く測っていない人を良好扱い)、血圧は★1
+    "HbA1c": {"unmeasured_score": 5},
+    "収縮期血圧": {"unmeasured_score": 1, "unmeasured_comment": "医師にご相談下さい。"},
+}
+
+# 帳票レイアウトを最終版に合わせ済みかを記録する設定キー(既存 DB へは 1 回だけ適用)
+LAYOUT_APPLIED_KEY = "report_layout_final_applied"
 
 # item_name -> list of (condition, list-of-(threshold, score, comment))
 # condition = dict(sex=?, age_band=?, pacemaker=?)  省略キーは NULL(全展開)
@@ -164,7 +191,7 @@ SETTINGS = {
         "※本評価値の一部は当施設独自に設定した基準に基づくものを含みます。"
         "医学的診断を目的としたものではありません。"
     ),
-    # 総合評価文言: 測定済み項目の★スコア平均で 1(最良)〜4 を選択(report.py)
+    # 総合評価文言: 帳票項目のうち★4以上の個数で 1(最良)〜4 を選択(report.summary_rank)
     "summary_rank_1": (
         "評価項目において同年代と比較して75%〜100%、基準値もしくは基準値以上の数値が出ており、"
         "心身ともに良い状態です。相対評価が低い項目の改善と、現状を維持できるよう、"
@@ -195,6 +222,9 @@ def apply_seed(conn: sqlite3.Connection) -> None:
         _seed_items_and_criteria(conn)
     else:
         _backfill_new_items(conn)
+    if repo.get_setting(conn, LAYOUT_APPLIED_KEY) is None:
+        apply_report_layout(conn)
+        repo.set_setting(conn, LAYOUT_APPLIED_KEY, "1")
     for k, v in SETTINGS.items():
         if repo.get_setting(conn, k) is None:
             repo.set_setting(conn, k, v)
@@ -211,6 +241,77 @@ def _backfill_new_items(conn: sqlite3.Connection) -> None:
             direction="range", in_radar=0, source_column=None,
             derived_formula="weight_change_ratio", is_qualitative=0,
         )
+    for name, unit, cat, direction, in_radar, src, derived, qual in ITEMS:
+        if name in ("下腿周囲長", "視力", "CRP") and repo.get_item_by_name(conn, name) is None:
+            repo.create_item(
+                conn, name=name, unit=unit, category=cat, sort_order=0, direction=direction,
+                in_radar=in_radar, source_column=src, derived_formula=derived, is_qualitative=qual,
+                is_active=0,
+            )
+
+
+def find_default_item(conn: sqlite3.Connection, name: str) -> sqlite3.Row | None:
+    """既定項目を探す。施設が画面で改名していても、派生式キーか取込列名で見つける."""
+    item = repo.get_item_by_name(conn, name)
+    if item is not None:
+        return item
+    spec = next((t for t in ITEMS if t[0] == name), None)
+    if spec is None:
+        return None
+    _name, _unit, _cat, _dir, _radar, src, derived, _qual = spec
+    if derived:
+        rows = conn.execute("SELECT * FROM eval_items WHERE derived_formula=?", (derived,)).fetchall()
+    elif src:
+        rows = conn.execute("SELECT * FROM eval_items WHERE source_column=?", (src,)).fetchall()
+    else:
+        rows = []
+    return rows[0] if len(rows) == 1 else None
+
+
+def _layout_positions() -> dict[str, tuple[str, int]]:
+    """REPORT_LAYOUT → {項目名: (区分, 表示順)}."""
+    layout: dict[str, tuple[str, int]] = {}
+    order = 0
+    for category, names in REPORT_LAYOUT:
+        for entry in names:
+            order += 1
+            for name in (entry if isinstance(entry, tuple) else (entry,)):
+                layout[name] = (category, order)
+    return layout
+
+
+def layout_item_ids(conn: sqlite3.Connection) -> set[int]:
+    """帳票の既定 18 行(REPORT_LAYOUT)に当たる項目の id。総合評価の集計対象."""
+    ids = set()
+    for name in _layout_positions():
+        item = find_default_item(conn, name)
+        if item is not None:
+            ids.add(item["id"])
+    return ids
+
+
+def apply_report_layout(conn: sqlite3.Connection) -> None:
+    """帳票の項目・区分・並び順・レーダー対象を最終版に合わせる.
+
+    既定項目(ITEMS。改名されていても取込列名などで特定)のうち REPORT_LAYOUT に無いものは
+    無効にし、あるものは有効・レーダー対象にして区分と表示順を揃える(施設が既定項目に
+    加えていた設定も上書きする)。施設が独自に追加した項目は変更しない。
+    """
+    layout = _layout_positions()
+    for name, *_rest in ITEMS:
+        item = find_default_item(conn, name)
+        if item is None:
+            continue
+        if name in layout:
+            category, sort_order = layout[name]
+            conn.execute(
+                "UPDATE eval_items SET category=?, sort_order=?, in_radar=1, is_active=1 WHERE id=?",
+                (category, sort_order, item["id"]),
+            )
+        else:
+            conn.execute("UPDATE eval_items SET in_radar=0, is_active=0 WHERE id=?", (item["id"],))
+        for key, value in ITEM_OPTIONS.get(name, {}).items():
+            conn.execute(f"UPDATE eval_items SET {key}=? WHERE id=?", (value, item["id"]))
 
 
 def _backfill_muscle_mass(conn: sqlite3.Connection) -> None:
@@ -267,8 +368,6 @@ def _seed_items_and_criteria(conn: sqlite3.Connection) -> None:
             derived_formula=derived, is_qualitative=qual,
         )
         name_to_id[name] = item_id
-        if name in INACTIVE_ITEMS:
-            repo.set_item_active(conn, item_id, False)
 
     for name, groups in CRITERIA.items():
         item_id = name_to_id[name]

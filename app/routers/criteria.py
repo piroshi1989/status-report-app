@@ -154,6 +154,9 @@ def update_item(
     is_qualitative: str = Form(""),
     # チェックボックスは外すと送信されないため、既定値は「無効」にする
     is_active: str = Form(""),
+    unmeasured_score: str = Form(""),
+    unmeasured_comment: str = Form(""),
+    pm_display: str = Form(""),
     conn: sqlite3.Connection = Depends(get_db),
 ):
     repo.update_item(
@@ -164,6 +167,9 @@ def update_item(
         derived_formula=(derived_formula or None),
         is_qualitative=1 if is_qualitative in ("1", "on", "true") else 0,
         is_active=1 if is_active in ("1", "on", "true") else 0,
+        unmeasured_score=int(unmeasured_score) if unmeasured_score in ("1", "2", "3", "4", "5") else None,
+        unmeasured_comment=(unmeasured_comment.strip() or None),
+        pm_display=pm_display if pm_display in ("with_pm", "without_pm") else None,
     )
     return RedirectResponse(f"/criteria/{item_id}", status_code=303)
 
