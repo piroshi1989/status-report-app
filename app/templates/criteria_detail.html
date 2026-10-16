@@ -29,6 +29,23 @@
       <div class="field"><label><input type="checkbox" name="is_qualitative" value="1" {{ 'checked' if item['is_qualitative'] }}> 定性値（コード値）</label></div>
       <div class="field"><label><input type="checkbox" name="is_active" value="1" {{ 'checked' if item['is_active'] }}> 有効</label></div>
     </div>
+    <div class="row">
+      <div class="field"><label>帳票に出す利用者</label>
+        <select name="pm_display">
+          <option value="" {{ 'selected' if not item['pm_display'] }}>全員</option>
+          <option value="without_pm" {{ 'selected' if item['pm_display']=='without_pm' }}>ペースメーカー無のみ(例: SMI)</option>
+          <option value="with_pm" {{ 'selected' if item['pm_display']=='with_pm' }}>ペースメーカー有のみ(例: 下腿周囲長)</option>
+        </select></div>
+      <div class="field"><label>未計測時の評価</label>
+        <select name="unmeasured_score">
+          <option value="" {{ 'selected' if item['unmeasured_score'] is none }}>評価しない(☆☆☆☆☆)</option>
+          {% for n in [5,4,3,2,1] %}
+          <option value="{{ n }}" {{ 'selected' if item['unmeasured_score']==n }}>★{{ n }}</option>
+          {% endfor %}
+        </select></div>
+      <div class="field" style="flex:2"><label>未計測時のコメント（空欄＝同じ評価の基準行のコメント）</label>
+        <input type="text" name="unmeasured_comment" value="{{ item['unmeasured_comment'] or '' }}"></div>
+    </div>
     <button class="btn secondary">項目を保存</button>
   </form>
 </div>
@@ -37,6 +54,10 @@
   <h2>評価基準（区間下限値 → 相対評価）</h2>
   <p class="muted">各行は「その相対評価になる区間の下限値」を表します。判定は、測定値以下で最大の閾値の行を採用します。
     条件（性別 / 年代 / PM）は空欄＝全展開。より具体的な条件が優先されます。</p>
+  {% if item['derived_formula'] == 'weight_change_ratio' %}
+  <div class="notice">この項目は、報告書には前回比（例: 107%(7%増加)）を表示し、評価は<strong>体重減少率</strong>
+    ＝（前回体重 − 今回体重）÷ 前回体重 × 100 に対して行います（増加はマイナス）。</div>
+  {% endif %}
   <table>
     <tr><th>性別</th><th>年代</th><th>PM</th><th class="right">閾値(下限)</th><th class="center">評価</th><th>コメント</th><th></th></tr>
     {% for c in criteria %}

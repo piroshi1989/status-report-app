@@ -37,10 +37,29 @@ def get_conn(db_file: Path | None = None) -> Iterator[sqlite3.Connection]:
         conn.close()
 
 
+# 既存 DB に後から足した列(CREATE TABLE IF NOT EXISTS では追加されない)
+_ADDED_COLUMNS = {
+    "eval_items": [
+        ("unmeasured_score", "INTEGER"),
+        ("unmeasured_comment", "TEXT"),
+        ("pm_display", "TEXT"),
+    ],
+}
+
+
+def _add_missing_columns(conn: sqlite3.Connection) -> None:
+    for table, cols in _ADDED_COLUMNS.items():
+        existing = {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}
+        for name, decl in cols:
+            if name not in existing:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")
+
+
 def init_db(db_file: Path | None = None, seed: bool = True) -> None:
     """スキーマを作成し、初回のみ既定のマスタ・シードを投入する."""
     with get_conn(db_file) as conn:
         conn.executescript(_schema_sql())
+        _add_missing_columns(conn)
         if seed:
             from . import seed as seed_mod
 

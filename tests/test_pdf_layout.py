@@ -8,6 +8,10 @@ from __future__ import annotations
 
 import re
 
+import pytest
+
+from app.services.pdf import FIT_STEPS
+
 
 def page_count(pdf_bytes: bytes) -> int:
     """PDF のページ数(ReportLab 出力の /Type /Page オブジェクト数)."""
@@ -91,11 +95,13 @@ FULL_VALUES = {
 }
 
 
-def test_pdf_table_cells_fit_on_one_line(tmp_env):
-    """詳細表のどのセルも折り返さないこと.
+@pytest.mark.parametrize("font_size", sorted({size for size, _ in FIT_STEPS}))
+def test_pdf_table_cells_fit_on_one_line(tmp_env, font_size):
+    """詳細表のコメント以外のセルが、どの文字サイズ段階でも折り返さないこと.
 
     列幅を詰めすぎるとセルが 2 行になり、表の高さが倍近くに膨らんで 1 ページに
     収まらなくなる。列を増やすときはこのテストで各列の幅を担保する。
+    コメント列は評価基準の文言が長く、折り返す前提(残り幅をすべて充てる)。
     """
     from reportlab.platypus import Table
 
@@ -118,12 +124,54 @@ def test_pdf_table_cells_fit_on_one_line(tmp_env):
                                     "128/80" if it["name"] == "収縮期血圧" else "")
         data = build_report(conn, pid, s2)
 
-    tbl = next(f for f in build_flowables(data) if isinstance(f, Table))
+    tbl = next(f for f in build_flowables(data, table_font_size=font_size) if isinstance(f, Table))
     inner = 12  # ReportLab Table 既定の LEFTPADDING + RIGHTPADDING(pt)
     wrapped = [
         (r, c, cell.getPlainText())
         for r, row in enumerate(tbl._cellvalues)
-        for c, cell in enumerate(row)
+        for c, cell in enumerate(row[:-1])
         if round(cell.wrap(tbl._argW[c] - inner, 10000)[1] / cell.style.leading) > 1
     ]
     assert wrapped == [], f"折り返しているセル: {wrapped}"
+
+
+# 本番の 23 項目 + 評価基準 Excel 取込で追加される 2 項目(視力・下腿周囲長)を有効化した場合
+LONG_COMMENT_ITEM_COUNT = 25
+# 評価基準 Excel の長めのコメント(54 字。実ファイルは平均 35 字・最長 65 字)
+LONG_COMMENT = "同年代と比較して非常に衰えが見られ、社会生活において大きな支障を感じる状態です。早期の補聴器装用を勧めます。"
+
+
+def test_long_comments_shrink_to_fit_one_page(client, make_xlsx):
+    """全項目が最長クラスのコメントでも、文字を縮めて 1 ページに収めること."""
+    from app import db, repo
+    from app.services.pdf import fitted_flowables
+    from app.services.report import build_report
+
+    with db.get_conn() as c:
+        for i in range(LONG_COMMENT_ITEM_COUNT - len(repo.list_items(c))):
+            repo.create_item(
+                c, name=f"追加項目{i + 1}", unit="点", category="身体機能",
+                sort_order=900 + i, direction="higher_better", in_radar=1,
+                source_column=None, derived_formula=None, is_qualitative=0,
+            )
+        c.execute("UPDATE eval_criteria SET comment = ?", (LONG_COMMENT,))
+        for it in repo.list_items(c):
+            if not repo.list_criteria_for_item(c, it["id"]):
+                repo.add_criterion(c, it["id"], None, None, None, 0, 3, LONG_COMMENT)
+
+    pid, sid = _make_two_sessions(client, make_xlsx)
+    with db.get_conn() as c:
+        sid1 = repo.list_sessions(c)[-1]["id"]
+        for it in repo.list_items(c):   # 全項目を測定済みにしてコメントを出す
+            if not it["derived_formula"]:
+                repo.upsert_measurement(c, sid, pid, it["id"], 10.0, "10")
+                repo.upsert_measurement(c, sid1, pid, it["id"], 10.0, "10")
+        data = build_report(c, pid, sid)
+    assert sum(1 for ln in data.lines if ln.comment == LONG_COMMENT) >= LONG_COMMENT_ITEM_COUNT - 3
+
+    _flow, size = fitted_flowables(data)
+    assert size < 8   # 実際に縮小が働いている
+    pdf = client.get(f"/report/pdf?session_id={sid}&patient_id={pid}")
+    assert page_count(pdf.content) == 1
+    batch = client.post("/batch/generate", data={"session_id": str(sid)})
+    assert page_count(batch.content) == 1

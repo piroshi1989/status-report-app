@@ -76,6 +76,7 @@ def test_weight_change_row_has_no_prev_text(tmp_env):
     with db.get_conn() as conn:
         pid, s1, s2 = _setup(conn)
         wid = repo.get_item_by_name(conn, "体重")["id"]
+        repo.set_item_active(conn, wid, True)   # 既定では帳票に出さない項目
         repo.upsert_measurement(conn, s1, pid, wid, 50.0, "")
         repo.upsert_measurement(conn, s2, pid, wid, 45.0, "")
 
@@ -216,11 +217,20 @@ def _pixels(png: bytes) -> bytes:
 
 def _pdf_radar_pixels(data) -> bytes:
     """PDF に埋め込まれるレーダー画像のピクセル."""
-    from reportlab.platypus import Image
+    from reportlab.platypus import Image, Table
 
     from app.services.pdf import build_flowables
 
-    img = next(f for f in build_flowables(data) if isinstance(f, Image))
+    def walk(flows):
+        # レーダーは総合評価と横並びの Table のセル内にある
+        for f in flows:
+            yield f
+            if isinstance(f, Table):
+                for row in f._cellvalues:
+                    for cell in row:
+                        yield from walk(cell if isinstance(cell, list) else [cell])
+
+    img = next(f for f in walk(build_flowables(data)) if isinstance(f, Image))
     return img._img.getRGBData()
 
 

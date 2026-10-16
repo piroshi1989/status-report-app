@@ -162,9 +162,11 @@ def create_item(conn, **f) -> int:
     cur = conn.execute(
         """INSERT INTO eval_items
            (name, unit, category, sort_order, direction, in_radar, source_column,
-            derived_formula, is_qualitative, is_active)
+            derived_formula, is_qualitative, is_active,
+            unmeasured_score, unmeasured_comment, pm_display)
            VALUES (:name,:unit,:category,:sort_order,:direction,:in_radar,:source_column,
-                   :derived_formula,:is_qualitative,1)""",
+                   :derived_formula,:is_qualitative,:is_active,
+                   :unmeasured_score,:unmeasured_comment,:pm_display)""",
         {
             "name": f["name"],
             "unit": f.get("unit"),
@@ -175,6 +177,10 @@ def create_item(conn, **f) -> int:
             "source_column": f.get("source_column"),
             "derived_formula": f.get("derived_formula"),
             "is_qualitative": int(f.get("is_qualitative", 0)),
+            "is_active": int(f.get("is_active", 1)),
+            "unmeasured_score": f.get("unmeasured_score"),
+            "unmeasured_comment": f.get("unmeasured_comment"),
+            "pm_display": f.get("pm_display"),
         },
     )
     return cur.lastrowid
@@ -185,7 +191,9 @@ def update_item(conn, item_id, **f) -> None:
         """UPDATE eval_items SET name=:name, unit=:unit, category=:category,
                   sort_order=:sort_order, direction=:direction, in_radar=:in_radar,
                   source_column=:source_column, derived_formula=:derived_formula,
-                  is_qualitative=:is_qualitative, is_active=:is_active
+                  is_qualitative=:is_qualitative, is_active=:is_active,
+                  unmeasured_score=:unmeasured_score, unmeasured_comment=:unmeasured_comment,
+                  pm_display=:pm_display
            WHERE id=:id""",
         {
             "id": item_id,
@@ -199,8 +207,15 @@ def update_item(conn, item_id, **f) -> None:
             "derived_formula": f.get("derived_formula"),
             "is_qualitative": int(f.get("is_qualitative", 0)),
             "is_active": int(f.get("is_active", 1)),
+            "unmeasured_score": f.get("unmeasured_score"),
+            "unmeasured_comment": f.get("unmeasured_comment"),
+            "pm_display": f.get("pm_display"),
         },
     )
+
+
+def set_item_active(conn, item_id, active: bool) -> None:
+    conn.execute("UPDATE eval_items SET is_active=? WHERE id=?", (1 if active else 0, item_id))
 
 
 # --- eval_criteria ---------------------------------------------------------

@@ -4,19 +4,26 @@ from __future__ import annotations
 
 import sqlite3
 
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import RedirectResponse
 
-from .. import repo
+from .. import repo, uploads
 from ..deps import get_db
 from ..domain import AGE_BANDS, AGE_BAND_LABELS
+from ..services import criteria_importer
 from ..templating import templates
 
 router = APIRouter(prefix="/criteria")
 
 
 @router.get("")
-def item_list(request: Request, conn: sqlite3.Connection = Depends(get_db)):
+def item_list(
+    request: Request,
+    imported: int | None = None,
+    created: int | None = None,
+    backup: str = "",
+    conn: sqlite3.Connection = Depends(get_db),
+):
     items = repo.list_items(conn, include_inactive=True)
     settings = {
         "facility_name": repo.get_setting(conn, "facility_name", "") or "",
@@ -29,7 +36,11 @@ def item_list(request: Request, conn: sqlite3.Connection = Depends(get_db)):
     }
     return templates.TemplateResponse(
         "criteria_list.html",
-        {"request": request, "items": items, "settings": settings, "active": "criteria"},
+        {"request": request, "items": items, "settings": settings, "active": "criteria",
+         "import_result": (
+             {"imported": imported, "created": created or 0, "backup": backup}
+             if imported is not None else None
+         )},
     )
 
 
@@ -64,6 +75,58 @@ def create_item(
     return RedirectResponse(f"/criteria/{item_id}", status_code=303)
 
 
+# --- 評価基準 Excel 取込 -----------------------------------------------------
+# 静的パスなので {item_id} ルートより先に定義する。
+
+def _import_form(request: Request, error: str | None = None, status_code: int = 200):
+    return templates.TemplateResponse(
+        "criteria_import.html",
+        {"request": request, "active": "criteria", "error": error},
+        status_code=status_code,
+    )
+
+
+@router.get("/import")
+def import_form(request: Request):
+    return _import_form(request)
+
+
+@router.post("/import/analyze")
+async def import_analyze(
+    request: Request,
+    file: UploadFile = File(...),
+    conn: sqlite3.Connection = Depends(get_db),
+):
+    token = uploads.save_upload(await file.read(), file.filename)
+    saved = uploads.resolve_token(token)
+    try:
+        preview = criteria_importer.analyze(conn, saved)
+    except Exception as e:
+        return _import_form(request, f"読み込みに失敗しました: {e}", status_code=400)
+    if not preview.plans:
+        return _import_form(
+            request, "評価基準のシート(「60代」「70代　ペースメーカー」など)が見つかりませんでした。",
+            status_code=400,
+        )
+    return templates.TemplateResponse(
+        "criteria_import_preview.html",
+        {"request": request, "active": "criteria", "preview": preview,
+         "token": token, "orig_name": file.filename},
+    )
+
+
+@router.post("/import/commit")
+def import_commit(token: str = Form(...), conn: sqlite3.Connection = Depends(get_db)):
+    saved = uploads.resolve_token(token)
+    if saved is None:
+        return RedirectResponse("/criteria/import", status_code=303)
+    preview = criteria_importer.analyze(conn, saved)
+    backup = criteria_importer.backup_db(conn)
+    stats = criteria_importer.apply(conn, preview)
+    qs = f"imported={stats['updated'] + stats['created']}&created={stats['created']}&backup={backup.name}"
+    return RedirectResponse(f"/criteria?{qs}", status_code=303)
+
+
 @router.get("/{item_id}")
 def item_detail(item_id: int, request: Request, conn: sqlite3.Connection = Depends(get_db)):
     item = repo.get_item(conn, item_id)
@@ -89,7 +152,11 @@ def update_item(
     source_column: str = Form(""),
     derived_formula: str = Form(""),
     is_qualitative: str = Form(""),
-    is_active: str = Form("1"),
+    # チェックボックスは外すと送信されないため、既定値は「無効」にする
+    is_active: str = Form(""),
+    unmeasured_score: str = Form(""),
+    unmeasured_comment: str = Form(""),
+    pm_display: str = Form(""),
     conn: sqlite3.Connection = Depends(get_db),
 ):
     repo.update_item(
@@ -100,6 +167,9 @@ def update_item(
         derived_formula=(derived_formula or None),
         is_qualitative=1 if is_qualitative in ("1", "on", "true") else 0,
         is_active=1 if is_active in ("1", "on", "true") else 0,
+        unmeasured_score=int(unmeasured_score) if unmeasured_score in ("1", "2", "3", "4", "5") else None,
+        unmeasured_comment=(unmeasured_comment.strip() or None),
+        pm_display=pm_display if pm_display in ("with_pm", "without_pm") else None,
     )
     return RedirectResponse(f"/criteria/{item_id}", status_code=303)
 

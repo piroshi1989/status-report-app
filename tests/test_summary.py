@@ -1,4 +1,4 @@
-"""総合評価文言(★平均による4段階)のテスト."""
+"""総合評価文言(★4 以上の項目数による4段階)と未計測時の評価のテスト."""
 
 from __future__ import annotations
 
@@ -8,50 +8,72 @@ from app.services.report import summary_rank
 
 
 @pytest.mark.parametrize(
-    "avg,expected",
+    "good,expected",
     [
-        (5.0, 1), (4.0, 1),          # 4以上 → 最良
-        (3.99, 2), (3.0, 2),         # 3以上4未満
-        (2.99, 3), (2.0, 3),         # 2以上3未満
-        (1.99, 4), (1.0, 4),         # 2未満
+        (18, 1), (14, 1),        # 14 以上 → 75〜100%(最良)
+        (13, 2), (8, 2),         # 8〜13 → 50〜74%
+        (7, 3), (5, 3),          # 5〜7 → 25〜49%
+        (4, 4), (0, 4),          # 4 以下 → 0〜24%
     ],
 )
-def test_summary_rank_boundaries(avg, expected):
-    assert summary_rank(avg) == expected
+def test_summary_rank_boundaries(good, expected):
+    """評価基準 Excel 最終版(計測結果入力シート)と同じ区切り."""
+    assert summary_rank(good) == expected
 
 
-# (HbA1c値, TUG値) → 期待ランク。seed 基準: HbA1c 6.8→★5 / 8.5→★3 / 9.5→★2 / 10.5→★1、
-# TUG 14→★3 / 25→★2
-@pytest.mark.parametrize(
-    "hba1c,tug,rank",
-    [
-        (6.8, 14, 1),    # (5+3)/2 = 4.0
-        (8.5, 14, 2),    # (3+3)/2 = 3.0
-        (9.5, 25, 3),    # (2+2)/2 = 2.0
-        (10.5, 25, 4),   # (1+2)/2 = 1.5
-    ],
-)
-def test_summary_text_selected_by_average(client, hba1c, tug, rank):
-    from app import db, repo
+def _report_with(c, code, values: dict):
+    from app import repo
     from app.services.report import build_report
 
-    with db.get_conn() as c:
-        pid = repo.create_patient(
-            conn=c, code=f"S{rank}", name="集計 花子", sex="F", birth_date="1948-01-01"
-        )
-        sid = repo.create_session(c, None, "2026-07-01", "test")
-        for item_name, value in [("HbA1c", hba1c), ("TUG", tug)]:
-            item = repo.get_item_by_name(c, item_name)
-            repo.upsert_measurement(c, sid, pid, item["id"], value, str(value))
-        data = build_report(c, pid, sid)
-        expected = repo.get_setting(c, f"summary_rank_{rank}")
+    pid = repo.create_patient(conn=c, code=code, name="集計 花子", sex="F", birth_date="1948-01-01")
+    sid = repo.create_session(c, None, "2026-07-01", "test")
+    for item_name, value in values.items():
+        item = repo.get_item_by_name(c, item_name)
+        repo.upsert_measurement(c, sid, pid, item["id"], value, str(value))
+    return build_report(c, pid, sid)
 
-    assert expected  # seed 済みであること
+
+# seed 基準での★: TUG 9→★5 / 25→★2、FRT 30→★5、握力(女) 20→★5、喫食率 10→★5、
+# mini-Cog 4→★5、Barthel 100→★5、FIM 126→★5、骨密度 95→★5。HbA1c は未計測でも★5
+GOOD = {"TUG": 9, "FRT": 30, "握力": 20, "喫食率": 10, "mini-Cog": 4, "Barthel Index": 100,
+        "FIM": 126, "骨密度(腰椎)": 95, "骨密度(大腿骨)": 95}
+
+
+@pytest.mark.parametrize(
+    "n_good,rank",
+    [
+        (9, 2),    # ★4以上: 9 項目 + 未計測 HbA1c(★5) = 10 → 50〜74%
+        (6, 3),    # 6 + 1 = 7 → 25〜49%
+        (3, 4),    # 3 + 1 = 4 → 0〜24%
+    ],
+)
+def test_summary_text_selected_by_good_count(client, n_good, rank):
+    from app import db, repo
+
+    with db.get_conn() as c:
+        values = dict(list(GOOD.items())[:n_good])
+        data = _report_with(c, f"S{rank}", values)
+        expected = repo.get_setting(c, f"summary_rank_{rank}")
+    assert expected
     assert data.summary == expected
 
 
+def test_unmeasured_hba1c_is_five_and_blood_pressure_is_one(client):
+    from app import db
+
+    with db.get_conn() as c:
+        data = _report_with(c, "U1", {"TUG": 9})
+    lines = {ln.name: ln for ln in data.lines}
+    assert (lines["HbA1c"].score, lines["HbA1c"].stars, lines["HbA1c"].measured) == (5, "★★★★★", False)
+    assert lines["HbA1c"].comment == "良好"            # 同じ評価(★5)の基準行のコメント
+    assert (lines["収縮期血圧"].score, lines["収縮期血圧"].comment) == (1, "医師にご相談下さい。")
+    assert lines["FRT"].score is None and lines["FRT"].comment == "未測定"
+    radar = dict(zip(data.radar_labels, data.radar_scores))
+    assert radar["HbA1c"] == 5 and radar["収縮期血圧"] == 1
+
+
 def test_summary_empty_when_no_scored_items(client):
-    """測定はあるが基準がなく score が付かない項目(身長)のみ → 総合評価は空."""
+    """帳票に出ない項目(身長)だけ測定 → 未計測時の評価(HbA1c 等)だけでは総合評価を出さない."""
     from app import db, repo
     from app.services.report import build_report
 

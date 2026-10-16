@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>評価基準取込プレビュー</h1>
+
+<div class="card">
+  <div>
+    ファイル: <strong>{{ orig_name }}</strong>
+    取込項目 <span class="badge ok">{{ preview.plans|length }}</span>
+    {% if preview.unknown %}未対応 <span class="badge warn">{{ preview.unknown|length }}</span>{% endif %}
+  </div>
+  {% if preview.skipped_sheets %}
+  <p class="muted">読み飛ばしたシート: {{ preview.skipped_sheets|join(' / ') }}</p>
+  {% endif %}
+  {% if preview.unknown %}
+  <div class="alert" style="margin-top:12px">
+    アプリの評価項目に対応しないため取り込まない項目: <strong>{{ preview.unknown|join(' / ') }}</strong>
+  </div>
+  {% endif %}
+  {% if preview.warnings %}
+  <div class="alert" style="margin-top:12px">
+    <strong>Excel の確認事項</strong>(該当行は取り込みません)
+    <ul style="margin:6px 0 0 18px">
+      {% for w in preview.warnings %}<li>{{ w }}</li>{% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>取込内容</h2>
+  <p class="muted">行をクリックすると条件ごとの閾値とコメントを確認できます。</p>
+  <table>
+    <tr><th>Excel の項目</th><th>アプリの項目</th><th>条件</th><th class="right">基準の行数(現在 → 取込後)</th></tr>
+    {% for p in preview.plans %}
+    <tr>
+      <td>{{ p.excel_name }}</td>
+      <td>{{ p.item_name }}{% if p.is_new %} <span class="badge warn">新規(無効で追加)</span>{% endif %}</td>
+      <td>{{ p.cond_sets|length }} 条件</td>
+      <td class="right">{{ p.current_rows }} → {{ p.row_count }}</td>
+    </tr>
+    <tr>
+      <td colspan="4" style="padding-top:0">
+        <details>
+          <summary class="muted">{{ p.cond_sets|map(attribute='label')|join(' / ') }}</summary>
+          <table>
+            <tr><th>条件</th><th class="right">閾値(下限)</th><th class="center">評価</th><th>コメント</th></tr>
+            {% for cs in p.cond_sets %}
+              {% for r in cs.rows %}
+              <tr>
+                {% if loop.first %}<td rowspan="{{ cs.rows|length }}">{{ cs.label }}</td>{% endif %}
+                <td class="right">{{ '%g'|format(r[0]) }}</td>
+                <td class="center">{{ r[1] }}</td>
+                <td>{{ r[2] or '' }}</td>
+              </tr>
+              {% endfor %}
+            {% endfor %}
+          </table>
+        </details>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+
+<div class="card">
+  <form method="post" action="/criteria/import/commit"
+        onsubmit="this.querySelector('button').disabled = true;">
+    <input type="hidden" name="token" value="{{ token }}">
+    <p>上記の項目は、評価基準が<strong>すべて置き換わります</strong>。画面で手修正した基準も上書きされます。
+      取込の直前に現在のデータベースを <code>data/backups</code> に保存します。</p>
+    <button class="btn">この内容で取り込む</button>
+    <a class="btn secondary" href="/criteria/import">やり直す</a>
+  </form>
+</div>
+{% endblock %}

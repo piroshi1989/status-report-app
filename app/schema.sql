@@ -41,6 +41,9 @@ CREATE TABLE IF NOT EXISTS eval_items (
     derived_formula TEXT,                       -- 派生項目キー(例: bmi)
     is_qualitative INTEGER NOT NULL DEFAULT 0, -- コード値項目(嚥下機能など)
     is_active      INTEGER NOT NULL DEFAULT 1,
+    unmeasured_score   INTEGER,                -- 未計測時に付ける評価(NULL=評価なし。例: HbA1c は 5)
+    unmeasured_comment TEXT,                   -- 未計測時のコメント(NULL=同じ評価の基準行のコメント)
+    pm_display     TEXT,                       -- 帳票に出す対象: NULL=全員 / 'with_pm' / 'without_pm'
     UNIQUE(name)
 );
 

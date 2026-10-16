@@ -2,8 +2,18 @@
 {% block content %}
 <div class="flex">
   <h1>評価基準マスタ</h1>
-  <a class="btn" href="/criteria/new">＋ 項目を追加</a>
+  <div>
+    <a class="btn secondary" href="/criteria/import">評価基準を Excel から取込</a>
+    <a class="btn" href="/criteria/new">＋ 項目を追加</a>
+  </div>
 </div>
+
+{% if import_result %}
+<div class="notice">
+  評価基準を取り込みました(対象 {{ import_result.imported }} 項目{% if import_result.created %}、うち新規 {{ import_result.created }} 項目は「無効」で追加。報告書に出す場合は基準編集で「有効」にしてください{% endif %})。
+  {% if import_result.backup %}取込前のデータベースは data/backups/{{ import_result.backup }} に保存しました。{% endif %}
+</div>
+{% endif %}
 
 <div class="card">
   <table>
@@ -33,13 +43,14 @@
     </div>
     <div class="field"><label>注意書き（帳票下部に固定表示）</label>
       <textarea name="disclaimer">{{ settings.disclaimer }}</textarea></div>
-    <div class="field"><label>総合評価文言（★平均が4以上）</label>
+    <p class="muted">総合評価は、帳票に出る項目のうち★4 以上の項目数で選びます（評価基準 Excel 最終版と同じ区切り）。</p>
+    <div class="field"><label>総合評価文言（★4以上が 14 項目以上）</label>
       <textarea name="summary_rank_1">{{ settings.summary_rank_1 }}</textarea></div>
-    <div class="field"><label>総合評価文言（★平均が3以上4未満）</label>
+    <div class="field"><label>総合評価文言（★4以上が 8〜13 項目）</label>
       <textarea name="summary_rank_2">{{ settings.summary_rank_2 }}</textarea></div>
-    <div class="field"><label>総合評価文言（★平均が2以上3未満）</label>
+    <div class="field"><label>総合評価文言（★4以上が 5〜7 項目）</label>
       <textarea name="summary_rank_3">{{ settings.summary_rank_3 }}</textarea></div>
-    <div class="field"><label>総合評価文言（★平均が2未満）</label>
+    <div class="field"><label>総合評価文言（★4以上が 4 項目以下）</label>
       <textarea name="summary_rank_4">{{ settings.summary_rank_4 }}</textarea></div>
     <button class="btn secondary">設定を保存</button>
   </form>
