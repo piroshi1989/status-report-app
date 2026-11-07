@@ -5,13 +5,17 @@ from __future__ import annotations
 import struct
 
 import numpy as np
+import pytest
 
+from app import db, repo
 from app.services.radar import build_figure, render_radar
+from app.services.report import build_report
 
-# 実運用のレーダー項目(in_radar=1 の既定項目)
+# 実運用のレーダー項目(帳票の 18 項目)
 LABELS = [
-    "BMI", "HbA1c", "収縮期血圧", "嚥下機能", "口腔機能", "骨密度(腰椎)", "骨密度(大腿骨)",
-    "Barthel Index", "FIM", "mini-Cog", "TUG", "FRT", "握力", "SMI", "喫食率", "片脚立位時間",
+    "HbA1c", "収縮期血圧", "嚥下機能", "口腔機能", "聴力1000Hz", "聴力4000Hz",
+    "骨密度(大腿骨)", "骨密度(腰椎)", "Barthel Index", "FIM", "mini-Cog", "TUG", "FRT",
+    "握力", "SMI", "BMI", "体重増減率", "喫食率",
 ]
 
 
@@ -84,16 +88,51 @@ def test_legend_says_which_series_is_which():
     assert [t.get_text() for t in legend.get_texts()] == ["今回", "前回"]
 
 
-def test_legend_does_not_overlap_the_item_labels():
-    """凡例は円の外・項目名の隙間に置く(項目名に重ねない)."""
-    fig, ax = build_figure(LABELS, [3] * len(LABELS), prev_scores=[5] * len(LABELS))
+def _labels_hit_by_legend(labels: list[str]) -> list[str]:
+    n = len(labels)
+    fig, ax = build_figure(labels, [3] * n, prev_scores=[5] * n)
     fig.canvas.draw()
-
     legend_bb = ax.get_legend().get_window_extent()
-    hit = [lb.get_text() for lb in ax.get_xticklabels()
-           if lb.get_window_extent().overlaps(legend_bb)]
+    return [lb.get_text() for lb in ax.get_xticklabels()
+            if lb.get_window_extent().overlaps(legend_bb)]
 
-    assert hit == [], f"凡例と重なっている項目名: {hit}"
+
+@pytest.mark.parametrize("pacemaker", [0, 1], ids=["SMI", "下腿周囲長"])
+def test_legend_does_not_overlap_labels_on_the_actual_report(tmp_env, pacemaker):
+    """帳票の項目で、凡例が項目名に重ならないこと(項目構成が変わっても追従する)."""
+    db.init_db(seed=True)
+    with db.get_conn() as conn:
+        pid = repo.create_patient(conn, code="R", name="r", sex="M", birth_date="1945-01-01",
+                                  pacemaker=pacemaker)
+        sid = repo.create_session(conn, 1, "2026-07-01", "a.xlsx")
+        labels = build_report(conn, pid, sid).radar_labels
+
+    assert len(labels) == 18
+    assert _labels_hit_by_legend(labels) == []
+
+
+@pytest.mark.parametrize(
+    "labels",
+    [
+        pytest.param([("体重減少率" if x == "体重増減率" else x) for x in LABELS], id="施設で改名"),
+        pytest.param(LABELS + ["施設独自項目A", "施設独自項目B"], id="独自項目を追加"),
+        pytest.param(LABELS[:16], id="項目が減った場合"),
+    ],
+)
+def test_legend_moves_away_from_labels_when_items_change(labels):
+    """項目名や項目数が変わって凡例の場所に項目名が来ても、重ならない場所へ逃げること."""
+    assert _labels_hit_by_legend(labels) == []
+
+
+def test_legend_stays_outside_the_chart_circle():
+    fig, ax = build_figure(LABELS, [5] * len(LABELS), prev_scores=[5] * len(LABELS))
+    fig.canvas.draw()
+    cx, cy, r = _center_and_radius(ax)
+
+    bb = ax.get_legend().get_window_extent()
+    dx = max(bb.x0 - cx, 0.0, cx - bb.x1)
+    dy = max(bb.y0 - cy, 0.0, cy - bb.y1)
+    assert float(np.hypot(dx, dy)) >= r
 
 
 def test_chart_is_unchanged_when_there_is_no_previous_session():
@@ -104,17 +143,27 @@ def test_chart_is_unchanged_when_there_is_no_previous_session():
     assert ax.get_legend() is None
 
 
-def test_previous_series_does_not_distort_the_image():
-    """凡例を足しても画像の縦横比が変わらないこと.
+def test_image_is_square_so_the_pdf_does_not_distort_the_circle():
+    """PDF は画像を正方形の枠に流し込むので、画像も正方形でないと円が歪む."""
+    n = len(LABELS)
+    assert _png_aspect(render_radar(LABELS, [3] * n)) == 1
+    assert _png_aspect(render_radar(LABELS, [3] * n, prev_scores=[5] * n)) == 1
 
-    PDF はこの PNG を 82mm 角の枠に流し込むため、凡例で図が横に伸びると円が潰れ、
-    A4 1 ページに収める前提(tests/test_pdf_layout.py)も崩れる.
-    """
-    scores = [3] * len(LABELS)
-    without = _png_aspect(render_radar(LABELS, scores))
-    with_prev = _png_aspect(render_radar(LABELS, scores, prev_scores=[5] * len(LABELS)))
 
-    assert abs(with_prev - without) <= 0.03, f"縦横比が {without:.3f} → {with_prev:.3f} に変化"
+@pytest.mark.parametrize("long_label", ["体重増減率", "施設独自の長い評価項目の名前"])
+def test_labels_and_legend_are_not_cut_off_by_the_image_edge(long_label):
+    labels = LABELS[:-2] + [long_label, LABELS[-1]]
+    n = len(labels)
+    fig, ax = build_figure(labels, [3] * n, prev_scores=[5] * n)
+    fig.canvas.draw()
+    page = fig.bbox
+
+    boxes = [lb.get_window_extent() for lb in ax.get_xticklabels()]
+    boxes.append(ax.get_legend().get_window_extent())
+    cut = [b for b in boxes
+           if b.x0 < page.x0 or b.y0 < page.y0 or b.x1 > page.x1 or b.y1 > page.y1]
+
+    assert cut == []
 
 
 def test_labels_still_clear_the_circle_with_two_series():
