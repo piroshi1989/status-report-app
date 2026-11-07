@@ -24,6 +24,17 @@ LABEL_PAD = 18
 CURR_COLOR = "#2b6cb0"
 PREV_COLOR = "#9aa5b1"
 
+# 凡例の置き場所の候補(図全体の四隅。左上から順に試す。座標は図全体の割合)。項目数や項目名で
+# 空いている隅が変わるので、項目名に重ならない最初の隅を選ぶ。円の枠の隅は項目名で埋まるので
+# 使えない。図の内側に置くので画像の縦横比も変わらない(tests/test_radar.py で担保)。
+LEGEND_CORNERS = [
+    ("upper left", (0.01, 0.99)),
+    ("upper right", (0.99, 0.99)),
+    ("lower left", (0.01, 0.01)),
+    ("lower right", (0.99, 0.01)),
+]
+LEGEND_MARGIN_PX = 4  # 項目名との最低限の間隔
+
 
 @lru_cache(maxsize=1)
 def _font() -> fm.FontProperties:
@@ -34,6 +45,39 @@ def _font() -> fm.FontProperties:
         matplotlib.rcParams["font.family"] = prop.get_name()
         return prop
     return fm.FontProperties()
+
+
+def _place_legend(fig, ax, handles: list, font: fm.FontProperties) -> None:
+    """凡例を項目名に重ならない隅に置く。どの隅も重なるなら重なりが最小の隅にする."""
+    legend_font = font.copy()
+    legend_font.set_size(8)
+    fig.draw_without_rendering()  # 項目名の最終位置を確定させる
+    label_boxes = [lb.get_window_extent() for lb in ax.get_xticklabels()]
+
+    def place(loc, anchor):
+        return ax.legend(
+            handles=handles, loc=loc, bbox_to_anchor=anchor, bbox_transform=fig.transFigure,
+            prop=legend_font, frameon=False, handlelength=2.2, borderaxespad=0.0,
+        )
+
+    def overlap_area(legend) -> float:
+        box = legend.get_window_extent().padded(LEGEND_MARGIN_PX)
+        total = 0.0
+        for lb in label_boxes:
+            w = min(box.x1, lb.x1) - max(box.x0, lb.x0)
+            h = min(box.y1, lb.y1) - max(box.y0, lb.y0)
+            if w > 0 and h > 0:
+                total += w * h
+        return total
+
+    areas = []
+    for loc, anchor in LEGEND_CORNERS:
+        area = overlap_area(place(loc, anchor))
+        if area == 0:
+            return
+        areas.append((area, loc, anchor))
+    _area, loc, anchor = min(areas, key=lambda a: a[0])
+    place(loc, anchor)
 
 
 def build_figure(
@@ -83,16 +127,10 @@ def build_figure(
     ax.grid(color="#cccccc", linewidth=0.6)
     ax.spines["polar"].set_color("#cccccc")
 
+    # 凡例は最終の配置で項目名との重なりを見るので、レイアウト確定後に置く
+    fig.tight_layout(pad=1.2)
     if prev_line is not None:
-        legend_font = font.copy()
-        legend_font.set_size(8)
-        # 円の外・図の左上の余白に置く。ここは項目名のぶんで既に確保されている領域なので
-        # 画像の縦横比が変わらない(tests/test_radar.py で担保)。
-        ax.legend(
-            handles=[curr_line, prev_line], loc="upper left",
-            bbox_to_anchor=(-0.02, 1.04), prop=legend_font,
-            frameon=False, handlelength=2.2, borderaxespad=0.0,
-        )
+        _place_legend(fig, ax, [curr_line, prev_line], font)
 
     return fig, ax
 
@@ -106,7 +144,8 @@ def render_radar(
     """レーダーチャートを PNG バイト列で返す."""
     fig, _ax = build_figure(labels, scores, max_score, prev_scores)
     buf = io.BytesIO()
-    fig.tight_layout(pad=1.2)
-    fig.savefig(buf, format="png", bbox_inches="tight", transparent=False)
+    # 余白を切り抜かない(tight_layout で項目名は図に収まっている)。切り抜くと縦横比が崩れ、
+    # 正方形の枠に流し込む PDF で円が歪む。
+    fig.savefig(buf, format="png", transparent=False)
     plt.close(fig)
     return buf.getvalue()
