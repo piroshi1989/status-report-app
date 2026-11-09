@@ -11,6 +11,7 @@ from .. import repo, uploads
 from ..deps import get_db
 from ..domain import AGE_BANDS, AGE_BAND_LABELS
 from ..services import criteria_importer
+from ..services.importer import DERIVED_INPUTS
 from ..templating import templates
 
 router = APIRouter(prefix="/criteria")
@@ -25,6 +26,12 @@ def item_list(
     conn: sqlite3.Connection = Depends(get_db),
 ):
     items = repo.list_items(conn, include_inactive=True)
+    # 帳票に非表示でも、表示中の派生項目(BMI・SMI 等)の計算に使う項目 → 使い道の項目名
+    used_for: dict[str, list[str]] = {}
+    for it in items:
+        if it["is_active"] and it["derived_formula"] in DERIVED_INPUTS:
+            for name in DERIVED_INPUTS[it["derived_formula"]]:
+                used_for.setdefault(name, []).append(it["name"])
     settings = {
         "facility_name": repo.get_setting(conn, "facility_name", "") or "",
         "report_title": repo.get_setting(conn, "report_title", "状況報告書") or "",
@@ -37,6 +44,7 @@ def item_list(
     return templates.TemplateResponse(
         "criteria_list.html",
         {"request": request, "items": items, "settings": settings, "active": "criteria",
+         "used_for": {k: sorted(v) for k, v in used_for.items()},
          "import_result": (
              {"imported": imported, "created": created or 0, "backup": backup}
              if imported is not None else None

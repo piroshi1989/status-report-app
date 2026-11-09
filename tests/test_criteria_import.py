@@ -386,3 +386,21 @@ def test_migrate_dry_run_does_not_create_db(tmp_env, criteria_xlsx, capsys):
     migrate(criteria_xlsx, dry_run=True)
     assert "握力" in capsys.readouterr().out
     assert not config.db_path().exists()
+
+
+def test_warns_when_thresholds_look_like_upper_bounds():
+    """最小の基準値が 0 より大きい(CRP の「以下」の書き方等)ときは、読み方の注意を出す."""
+    rows = [HEADER,
+            ["CRP", 0.3, 5, None, "炎症なし", None, None],
+            [None, 0.9, 4, None, "a", None, None],
+            [None, 10, 1, None, "b", None, None],
+            [],
+            ["HbA1c", 0, 5, None, "良い", None, None],
+            [None, 8.5, 1, None, "悪い", None, None],
+            [],
+            ["FIM(社会性)", 1, "計測困難", None, "c", None, None],   # コード値(1〜)は対象外
+            [None, 5, "完全自立", None, "d", None, None]]
+    _parsed, warnings = ci.parse_sheet(rows, "60代")
+    lowest = [w for w in warnings if "最小" in w]
+    assert len(lowest) == 1
+    assert "CRP" in lowest[0] and "0.3" in lowest[0] and "以上" in lowest[0]

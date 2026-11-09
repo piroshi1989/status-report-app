@@ -180,6 +180,16 @@ def _extract(conn: sqlite3.Connection, path: str | Path) -> ImportPreview:
     return preview
 
 
+# 派生項目(derived_formula)の計算に使う入力項目の名前。帳票に非表示の項目でも取込は行うので、
+# 基準マスタ画面で「取込のみ(〜の計算に使用)」と示すのに使う。
+# bmi・smi は _apply_derived、体重増減率は report._weight_change_value が計算する。
+DERIVED_INPUTS = {
+    "bmi": ("身長", "体重"),
+    "smi": ("筋肉量", "身長"),
+    "weight_change_ratio": ("体重",),
+}
+
+
 def _apply_derived(conn, item_by_id, col_to_item, row, values) -> None:
     """派生項目(BMI 等)を算出して values に格納。既に取込済みならスキップ."""
     # 逆引き: source_column 名 -> value

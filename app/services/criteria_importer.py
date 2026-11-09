@@ -53,15 +53,15 @@ EXCEL_ITEM_MAP = {
     "crp": "CRP",
 }
 
-# 初期版のアプリに無かった項目。通常は起動時の seed で作られるが、DB に無ければ「無効」で作成する
-# (有効化は基準マスタ画面で)。after: 表示順をこの項目に揃える
+# 初期版のアプリに無かった項目。通常は起動時の seed で作られるが、DB に無ければ帳票に非表示で
+# 作成する(表示は基準マスタ画面で)。after: 表示順をこの項目に揃える
 NEW_ITEMS = {
     "視力": dict(unit="", category="看護", direction="higher_better", in_radar=0,
                  source_column="視力", after="聴力4000Hz"),
     # ペースメーカー有の利用者だけ SMI の代わりに帳票に出す
     "下腿周囲長": dict(unit="cm", category="栄養", direction="higher_better", in_radar=1,
                     source_column="下腿周囲長", after="SMI", pm_display="with_pm"),
-    "CRP": dict(unit="mg/dL", category="看護", direction="lower_better", in_radar=0,
+    "CRP": dict(unit="mg/dL", category="看護", direction="lower_better", in_radar=1,
                 source_column="CRP", after="骨密度(腰椎)"),
 }
 
@@ -166,8 +166,11 @@ def parse_sheet(rows: list[tuple], sheet_label: str = "") -> tuple[dict, list[st
         return {}, [f"{sheet_label}: 見出し行(評価項目/相対評価)が見つからないため読み飛ばしました"]
 
     result: dict[tuple[str, Optional[str]], list[Row]] = {}
+    block_names: dict[tuple[str, Optional[str]], str] = {}   # Excel 上の表記(警告用)
+    coded: set[tuple[str, Optional[str]]] = set()            # 定性項目(コード値が評価)
     current: Optional[list[Row]] = None   # 取込中ブロックの行リスト
     current_name = ""
+    current_key: tuple[str, Optional[str]] = ("", None)
     skipping = False                      # 総合評価など基準でないブロック
 
     for row in rows[header_idx + 1:]:
@@ -204,8 +207,9 @@ def parse_sheet(rows: list[tuple], sheet_label: str = "") -> tuple[dict, list[st
                     current, skipping = None, True
                     continue
                 current, skipping = [], False
-                current_name = a
+                current_name, current_key = a, key
                 result[key] = current
+                block_names[key] = a
 
         if current is None:
             continue
@@ -226,6 +230,7 @@ def parse_sheet(rows: list[tuple], sheet_label: str = "") -> tuple[dict, list[st
             score = int(score_num)
         elif _text(score_raw) is not None and thr.is_integer():
             score = int(thr)  # 定性項目: 相対評価欄は文言、コード値が評価
+            coded.add(current_key)
         else:
             warnings.append(f"{sheet_label}: 「{current_name}」の相対評価が読めない行を除外しました(基準値 {thr:g})")
             continue
@@ -236,6 +241,19 @@ def parse_sheet(rows: list[tuple], sheet_label: str = "") -> tuple[dict, list[st
             warnings.append(f"{sheet_label}: 「{current_name}」の評価基準内容 {thr:g} が重複しているため2つ目以降を除外しました")
             continue
         current.append((thr, score, comment, desc))
+
+    # 基準値は「この値以上」の区切りとして読む。最小の基準値が 0 より大きいと、それ未満の値も
+    # 最初の行の評価になる。CRP(0.3/0.9/…)のように「以下」の意味で書いた基準を見つけるための注意。
+    for key, rows in result.items():
+        if not rows or key in coded:
+            continue
+        lowest = min(rows, key=lambda r: r[0])
+        if lowest[0] > 0:
+            warnings.append(
+                f"{sheet_label}: 「{block_names[key]}」の最小の評価基準内容が {lowest[0]:g} です。"
+                f"評価基準内容は「この値以上」の区切りとして読むため、{lowest[0]:g} 未満の値も"
+                f"★{lowest[1]} になります。「以下」の意味で書いている場合は Excel を直してください"
+            )
 
     return {k: v for k, v in result.items() if v}, warnings
 

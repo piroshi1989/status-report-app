@@ -27,8 +27,9 @@
     <div class="row">
       <div class="field"><label><input type="checkbox" name="in_radar" value="1" {{ 'checked' if item['in_radar'] }}> レーダー対象</label></div>
       <div class="field"><label><input type="checkbox" name="is_qualitative" value="1" {{ 'checked' if item['is_qualitative'] }}> 定性値（コード値）</label></div>
-      <div class="field"><label><input type="checkbox" name="is_active" value="1" {{ 'checked' if item['is_active'] }}> 有効</label></div>
+      <div class="field"><label><input type="checkbox" name="is_active" value="1" {{ 'checked' if item['is_active'] }}> 帳票に表示する</label></div>
     </div>
+    <p class="muted">「帳票に表示する」を外しても測定値の取込は行い、BMI・SMI・体重増減率の計算に使います。</p>
     <div class="row">
       <div class="field"><label>帳票に出す利用者</label>
         <select name="pm_display">
