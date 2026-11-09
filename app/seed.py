@@ -45,12 +45,13 @@ ITEMS = [
     ("CRP", "mg/dL", "看護", "lower_better", 0, "CRP", None, 0),
 ]
 
-# 帳票に載せる項目と区分・並び順(評価基準 Excel 最終版「グラフ①」の 18 行)。
-# ここに無い既定項目(身長・体重・筋肉量・片脚立位時間・視力・CRP)は無効にする。
+# 帳票に載せる項目と区分・並び順(評価基準 Excel 最終版「グラフ①」の 18 行 + CRP)。
+# CRP は最終版の帳票に無いが、施設の要望で看護の最後に出し総合評価にも数える(2026-11)。
+# ここに無い既定項目(身長・体重・筋肉量・片脚立位時間・視力)は無効にする。
 # 無効でも測定値の取込は行われ、身長・体重・筋肉量は BMI・SMI・体重増減率の算出に使う。
 REPORT_LAYOUT = [
     ("看護", ["HbA1c", "収縮期血圧", "嚥下機能", "口腔機能", "聴力1000Hz", "聴力4000Hz",
-              "骨密度(大腿骨)", "骨密度(腰椎)"]),
+              "骨密度(大腿骨)", "骨密度(腰椎)", "CRP"]),
     ("体力", ["Barthel Index", "FIM", "mini-Cog", "TUG", "FRT", "握力"]),
     # SMI と下腿周囲長は同じ行(PM 無は SMI、PM 有は下腿周囲長)
     ("栄養", [("SMI", "下腿周囲長"), "BMI", "体重増減率", "喫食率"]),
@@ -67,6 +68,8 @@ ITEM_OPTIONS = {
 
 # 帳票レイアウトを最終版に合わせ済みかを記録する設定キー(既存 DB へは 1 回だけ適用)
 LAYOUT_APPLIED_KEY = "report_layout_final_applied"
+# CRP を帳票に追加済みかを記録する設定キー(v1.3.x の DB へは 1 回だけ適用)
+CRP_ADDED_KEY = "report_layout_crp_added"
 
 # item_name -> list of (condition, list-of-(threshold, score, comment))
 # condition = dict(sex=?, age_band=?, pacemaker=?)  省略キーは NULL(全展開)
@@ -223,8 +226,12 @@ def apply_seed(conn: sqlite3.Connection) -> None:
     else:
         _backfill_new_items(conn)
     if repo.get_setting(conn, LAYOUT_APPLIED_KEY) is None:
-        apply_report_layout(conn)
+        apply_report_layout(conn)   # REPORT_LAYOUT に CRP も含まれる
         repo.set_setting(conn, LAYOUT_APPLIED_KEY, "1")
+        repo.set_setting(conn, CRP_ADDED_KEY, "1")
+    elif repo.get_setting(conn, CRP_ADDED_KEY) is None:
+        _add_crp_to_report(conn)
+        repo.set_setting(conn, CRP_ADDED_KEY, "1")
     for k, v in SETTINGS.items():
         if repo.get_setting(conn, k) is None:
             repo.set_setting(conn, k, v)
@@ -248,6 +255,23 @@ def _backfill_new_items(conn: sqlite3.Connection) -> None:
                 in_radar=in_radar, source_column=src, derived_formula=derived, is_qualitative=qual,
                 is_active=0,
             )
+
+
+def _add_crp_to_report(conn: sqlite3.Connection) -> None:
+    """帳票レイアウト適用済み(v1.3.x)の DB に CRP だけを足す.
+
+    他の項目の設定は施設がその後に変えている可能性があるので、レイアウト全体は当て直さない。
+    表示順は骨密度(腰椎)と同じにする(同順は id 順なので、後から作られた CRP がその次に並ぶ)。
+    """
+    crp = find_default_item(conn, "CRP")
+    if crp is None:
+        return
+    lumbar = find_default_item(conn, "骨密度(腰椎)")
+    category, _order = _layout_positions()["CRP"]
+    conn.execute(
+        "UPDATE eval_items SET is_active=1, in_radar=1, category=?, sort_order=? WHERE id=?",
+        (category, lumbar["sort_order"] if lumbar else crp["sort_order"], crp["id"]),
+    )
 
 
 def find_default_item(conn: sqlite3.Connection, name: str) -> sqlite3.Row | None:
@@ -281,7 +305,7 @@ def _layout_positions() -> dict[str, tuple[str, int]]:
 
 
 def layout_item_ids(conn: sqlite3.Connection) -> set[int]:
-    """帳票の既定 18 行(REPORT_LAYOUT)に当たる項目の id。総合評価の集計対象."""
+    """帳票の既定の行(REPORT_LAYOUT、CRP を含む 19 行)に当たる項目の id。総合評価の集計対象."""
     ids = set()
     for name in _layout_positions():
         item = find_default_item(conn, name)

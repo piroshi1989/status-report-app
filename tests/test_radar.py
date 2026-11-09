@@ -11,10 +11,10 @@ from app import db, repo
 from app.services.radar import build_figure, render_radar
 from app.services.report import build_report
 
-# 実運用のレーダー項目(帳票の 18 項目)
+# 実運用のレーダー項目(帳票の 19 項目)
 LABELS = [
     "HbA1c", "収縮期血圧", "嚥下機能", "口腔機能", "聴力1000Hz", "聴力4000Hz",
-    "骨密度(大腿骨)", "骨密度(腰椎)", "Barthel Index", "FIM", "mini-Cog", "TUG", "FRT",
+    "骨密度(大腿骨)", "骨密度(腰椎)", "CRP", "Barthel Index", "FIM", "mini-Cog", "TUG", "FRT",
     "握力", "SMI", "BMI", "体重増減率", "喫食率",
 ]
 
@@ -107,7 +107,7 @@ def test_legend_does_not_overlap_labels_on_the_actual_report(tmp_env, pacemaker)
         sid = repo.create_session(conn, 1, "2026-07-01", "a.xlsx")
         labels = build_report(conn, pid, sid).radar_labels
 
-    assert len(labels) == 18
+    assert len(labels) == 19
     assert _labels_hit_by_legend(labels) == []
 
 

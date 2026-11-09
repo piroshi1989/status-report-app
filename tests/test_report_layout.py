@@ -9,7 +9,7 @@ from app.services.report import build_report
 
 FINAL_ORDER = [
     "HbA1c", "収縮期血圧", "嚥下機能", "口腔機能", "聴力1000Hz", "聴力4000Hz",
-    "骨密度(大腿骨)", "骨密度(腰椎)",
+    "骨密度(大腿骨)", "骨密度(腰椎)", "CRP",
     "Barthel Index", "FIM", "mini-Cog", "TUG", "FRT", "握力",
     "SMI", "BMI", "体重増減率", "喫食率",
 ]
@@ -22,16 +22,17 @@ def _report_names(conn, pacemaker: int):
     return [ln.name for ln in build_report(conn, pid, sid).lines], build_report(conn, pid, sid)
 
 
-def test_fresh_db_report_has_final_18_items_in_order(tmp_env):
+def test_fresh_db_report_has_final_19_items_in_order(tmp_env):
     db.init_db(seed=True)
     with db.get_conn() as conn:
         names, data = _report_names(conn, 0)
         assert names == FINAL_ORDER
-        assert data.radar_labels == FINAL_ORDER          # レーダーも 18 項目すべて
+        assert data.radar_labels == FINAL_ORDER          # レーダーも 19 項目すべて
         cats = {ln.name: ln.category for ln in data.lines}
         assert (cats["HbA1c"], cats["握力"], cats["喫食率"]) == ("看護", "体力", "栄養")
         inactive = {it["name"] for it in repo.list_items(conn, include_inactive=True) if not it["is_active"]}
-        assert {"身長", "体重", "筋肉量", "片脚立位時間", "視力", "CRP"} <= inactive
+        assert {"身長", "体重", "筋肉量", "片脚立位時間", "視力"} <= inactive
+        assert "CRP" not in inactive
 
 
 def test_pacemaker_patient_sees_calf_instead_of_smi(tmp_env):
@@ -190,3 +191,77 @@ def test_pacemaker_patient_in_fifties_falls_back_to_smi(tmp_env):
     assert "SMI" in young and "下腿周囲長" not in young      # 56 歳: 基準なし → SMI
     assert "下腿周囲長" in sixties and "SMI" not in sixties  # 64 歳: 60代の基準あり
     assert "SMI" in names_50                                  # 81 歳: 80代の基準なし → SMI
+
+
+# --- CRP を帳票に追加(v1.3.x の DB へは 1 回だけ) ----------------------------------
+
+def _as_v13_db(conn):
+    """v1.3.x の状態に戻す: CRP は無効・レーダー外で、CRP 追加の記録が無い."""
+    conn.execute("UPDATE eval_items SET is_active=0, in_radar=0, sort_order=0 WHERE name='CRP'")
+    conn.execute("DELETE FROM report_settings WHERE key=?", (seed.CRP_ADDED_KEY,))
+
+
+def test_existing_db_gets_crp_on_the_report_once(tmp_env):
+    db.init_db(seed=True)
+    with db.get_conn() as conn:
+        _as_v13_db(conn)
+        conn.execute("UPDATE eval_items SET is_active=0 WHERE name='FRT'")   # 施設の設定
+    db.init_db(seed=True)
+    with db.get_conn() as conn:
+        crp = repo.get_item_by_name(conn, "CRP")
+        assert (crp["is_active"], crp["in_radar"], crp["category"]) == (1, 1, "看護")
+        names, data = _report_names(conn, 0)
+        assert names[names.index("骨密度(腰椎)") + 1] == "CRP"
+        assert "CRP" in data.radar_labels
+        assert repo.get_item_by_name(conn, "FRT")["is_active"] == 0     # 他の設定は戻さない
+
+        # 施設が後で非表示にしたら、次の起動で戻さない
+        conn.execute("UPDATE eval_items SET is_active=0 WHERE name='CRP'")
+    db.init_db(seed=True)
+    with db.get_conn() as conn:
+        assert repo.get_item_by_name(conn, "CRP")["is_active"] == 0
+
+
+def test_crp_counts_toward_the_summary(tmp_env):
+    """CRP の★も総合評価の★4以上の個数に入る(区切りは 14/8/5 のまま)."""
+    db.init_db(seed=True)
+    with db.get_conn() as conn:
+        crp = repo.get_item_by_name(conn, "CRP")["id"]
+        repo.add_criterion(conn, crp, None, None, None, 0, 5, "炎症反応なし")
+        sid = repo.create_session(conn, 1, "2026-07-01", "a.xlsx")
+        summaries = {}
+        for code, crp_value in [("N", None), ("Y", 0.1)]:
+            pid = repo.create_patient(conn, code=code, name=code, sex="F", birth_date="1948-01-01")
+            # TUG・FRT・握力が★5、未計測の HbA1c が★5 → 4 個(0〜24%)
+            for name, v in [("TUG", 9.0), ("FRT", 30.0), ("握力", 20.0)]:
+                repo.upsert_measurement(conn, sid, pid, repo.get_item_by_name(conn, name)["id"], v, str(v))
+            if crp_value is not None:
+                repo.upsert_measurement(conn, sid, pid, crp, crp_value, str(crp_value))
+            summaries[code] = build_report(conn, pid, sid).summary
+        rank3 = repo.get_setting(conn, "summary_rank_3")
+        rank4 = repo.get_setting(conn, "summary_rank_4")
+    assert summaries == {"N": rank4, "Y": rank3}     # CRP★5 で 5 個 → 25〜49%
+
+
+# --- 基準マスタの表示(有効/無効 → 帳票に表示/非表示) ---------------------------------
+
+def test_criteria_list_says_hidden_items_are_still_used_for_calculation(client):
+    page = client.get("/criteria").text
+    rows = {}
+    for tr in page.split("<tr>")[1:]:
+        cells = [c.split("</td>")[0] for c in tr.split("<td")[1:]]
+        if len(cells) > 1:
+            name = cells[1].split(">", 1)[1].split("<")[0].strip()
+            rows[name] = tr
+    assert "取込のみ（SMI の計算に使用）" in rows["筋肉量"]
+    assert "取込のみ（BMI・SMI の計算に使用）" in rows["身長"]
+    assert "取込のみ（BMI・体重増減率 の計算に使用）" in rows["体重"]
+    assert "非表示" in rows["片脚立位時間"] and "取込のみ" not in rows["片脚立位時間"]
+    assert "表示" in rows["HbA1c"] and "非表示" not in rows["HbA1c"]
+
+
+def test_item_form_calls_the_checkbox_show_on_report(client):
+    with db.get_conn() as conn:
+        item = repo.get_item_by_name(conn, "筋肉量")
+    page = client.get(f"/criteria/{item['id']}").text
+    assert "帳票に表示する" in page

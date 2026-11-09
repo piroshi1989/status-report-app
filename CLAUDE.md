@@ -58,13 +58,17 @@ python run.py
 - 体重増減率は前回比(107%表記)で表示し、評価は Excel と同じ**体重減少率**
   (前回−今回)÷前回×100 で行う(`report._weight_loss_value`)。
 - 年代バンド '50' は「50代以下」(59歳以下を一括)。
-- 帳票の項目・区分(看護/体力/栄養)・並び順は評価基準 Excel 最終版「グラフ①」に合わせる
+- 帳票の項目・区分(看護/体力/栄養)・並び順は評価基準 Excel 最終版「グラフ①」の 18 行 + CRP(看護の最後)
   (`seed.REPORT_LAYOUT`。既存 DB へは起動時に 1 回だけ適用し、設定キー
   `report_layout_final_applied` で記録。既定項目は改名されていても取込列名/派生式で特定し、
   施設が既定項目に加えていた有効・区分・順の設定も上書きする。施設独自項目は触らない)。
   PM 有でも下腿周囲長にその年代の基準が無ければ SMI に戻す(`report.items_for_patient`)。
-  総合評価は既定 18 行(`seed.layout_item_ids`)だけで数える。身長・体重・筋肉量は
-  無効項目だが取込はされ、BMI・SMI・体重増減率の算出に使う。
+  総合評価は既定 19 行(`seed.layout_item_ids`)だけで数える(区切り 14/8/5 は据え置き)。
+  CRP は v1.3.x の DB へは設定キー `report_layout_crp_added` で 1 回だけ追加する。
+  `is_active` は画面上「帳票に表示」。身長・体重・筋肉量は非表示だが取込はされ、
+  BMI・SMI・体重増減率の算出に使う(`importer.DERIVED_INPUTS`、基準マスタに「取込のみ」と表示)。
+- 評価基準 Excel の基準値は「この値以上」の区切り。最小の基準値が 0 より大きいブロック
+  (CRP の「以下」の書き方など)は取込プレビューで注意を出す。
 - 項目属性 `pm_display`(SMI=PM無のみ / 下腿周囲長=PM有のみ)、`unmeasured_score`・
   `unmeasured_comment`(未計測の HbA1c=★5、血圧=★1)。列追加は `db._ADDED_COLUMNS` で既存 DB に ALTER。
 - 総合評価は帳票項目のうち★4以上の個数(14以上/8〜13/5〜7/4以下 → summary_rank_1..4、

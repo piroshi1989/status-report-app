@@ -10,14 +10,14 @@
 
 {% if import_result %}
 <div class="notice">
-  評価基準を取り込みました(対象 {{ import_result.imported }} 項目{% if import_result.created %}、うち新規 {{ import_result.created }} 項目は「無効」で追加。報告書に出す場合は基準編集で「有効」にしてください{% endif %})。
+  評価基準を取り込みました(対象 {{ import_result.imported }} 項目{% if import_result.created %}、うち新規 {{ import_result.created }} 項目は帳票に非表示で追加。報告書に出す場合は基準編集で「帳票に表示する」にしてください{% endif %})。
   {% if import_result.backup %}取込前のデータベースは data/backups/{{ import_result.backup }} に保存しました。{% endif %}
 </div>
 {% endif %}
 
 <div class="card">
   <table>
-    <tr><th>順</th><th>項目名</th><th>単位</th><th>区分</th><th>評価方向</th><th class="center">レーダー</th><th>取込列名</th><th class="center">状態</th><th></th></tr>
+    <tr><th>順</th><th>項目名</th><th>単位</th><th>区分</th><th>評価方向</th><th class="center">レーダー</th><th>取込列名</th><th class="center">帳票</th><th></th></tr>
     {% for it in items %}
     <tr>
       <td class="center">{{ it['sort_order'] }}</td>
@@ -27,7 +27,8 @@
       <td class="muted">{{ it['direction'] }}</td>
       <td class="center">{{ '○' if it['in_radar'] else '' }}</td>
       <td class="muted">{{ it['source_column'] or '' }}</td>
-      <td class="center">{% if it['is_active'] %}<span class="badge ok">有効</span>{% else %}<span class="badge">無効</span>{% endif %}</td>
+      <td class="center">{% if it['is_active'] %}<span class="badge ok">表示</span>{% else %}<span class="badge">非表示</span>
+        {%- if used_for.get(it['name']) %}<div class="muted">取込のみ（{{ used_for[it['name']]|join('・') }} の計算に使用）</div>{% endif %}{% endif %}</td>
       <td><a class="btn small secondary" href="/criteria/{{ it['id'] }}">基準編集</a></td>
     </tr>
     {% endfor %}

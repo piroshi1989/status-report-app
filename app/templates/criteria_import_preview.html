@@ -34,7 +34,7 @@
     {% for p in preview.plans %}
     <tr>
       <td>{{ p.excel_name }}</td>
-      <td>{{ p.item_name }}{% if p.is_new %} <span class="badge warn">新規(無効で追加)</span>{% endif %}</td>
+      <td>{{ p.item_name }}{% if p.is_new %} <span class="badge warn">新規(帳票に非表示で追加)</span>{% endif %}</td>
       <td>{{ p.cond_sets|length }} 条件</td>
       <td class="right">{{ p.current_rows }} → {{ p.row_count }}</td>
     </tr>
